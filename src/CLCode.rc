@@ -1,0 +1,37 @@
+/*
+ *  HYDRAULIC MODEL
+ *  Luke Smith, 2011.
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  OpenCL Code Resources
+ * ------------------------------------------
+ *
+ */
+
+// OpenCL Header Files
+CLUniversalHeader_H		OpenCLCode			"OpenCL\Executors\CLUniversalHeader.clh"
+
+CLFriction_H			OpenCLCode			"Schemes\CLFriction.clh"
+CLSchemeMUSCLHancock_H	OpenCLCode			"Schemes\CLSchemeMUSCLHancock.clh"
+CLSchemeInertial_H		OpenCLCode			"Schemes\CLSchemeInertial.clh"
+CLSchemeGodunov_H		OpenCLCode			"Schemes\CLSchemeGodunov.clh"
+CLSolverHLLC_H			OpenCLCode			"Solvers\CLSolverHLLC.clh"
+CLDynamicTimestep_H		OpenCLCode			"Schemes\CLDynamicTimestep.clh"
+CLDomainCartesian_H		OpenCLCode			"Domain\Cartesian\CLDomainCartesian.clh"
+CLSlopeLimiterMINMOD_H	OpenCLCode			"Schemes\Limiters\CLSlopeLimiterMINMOD.clh"
+CLBoundaries_H			OpenCLCode			"Boundaries\CLBoundaries.clh"
+
+// OpenCL Main Files
+CLFriction_C			OpenCLCode			"Schemes\CLFriction.clc"
+CLSchemeMUSCLHancock_C	OpenCLCode			"Schemes\CLSchemeMUSCLHancock.clc"
+CLSchemeInertial_C		OpenCLCode			"Schemes\CLSchemeInertial.clc"
+CLSchemeGodunov_C		OpenCLCode			"Schemes\CLSchemeGodunov.clc"
+CLSolverHLLC_C			OpenCLCode			"Solvers\CLSolverHLLC.clc"
+CLDynamicTimestep_C		OpenCLCode			"Schemes\CLDynamicTimestep.clc"
+CLDomainCartesian_C		OpenCLCode			"Domain\Cartesian\CLDomainCartesian.clc"
+CLSlopeLimiterMINMOD_C	OpenCLCode			"Schemes\Limiters\CLSlopeLimiterMINMOD.clc"
+CLBoundaries_C			OpenCLCode			"Boundaries\CLBoundaries.clc"

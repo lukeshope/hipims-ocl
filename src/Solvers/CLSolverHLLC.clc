@@ -1,0 +1,248 @@
+/*
+ * ------------------------------------------
+ *
+ *  HIGH-PERFORMANCE INTEGRATED MODELLING SYSTEM (HiPIMS)
+ *  Luke S. Smith and Qiuhua Liang
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  This code is licensed under GPLv3. See LICENCE
+ *  for more information.
+ * ------------------------------------------
+ *  HLLC APPROXIMATE RIEMANN SOLVER
+ * ------------------------------------------
+ *  Implementation of the approximate HLLC
+ *  Riemann solver for the GPU.
+ * ------------------------------------------
+ *
+ */
+
+/*
+ *  Calculate an approximate solution to the Riemann problem
+ *  at the cell interface using the HLLC approach.
+ */
+cl_double4 riemannSolver(
+	cl_uchar	ucDirection,
+	cl_double8		pLeft,
+	cl_double8		pRight,
+	bool		bDebug
+	)
+{
+	uint2		uiDirectionVector;
+	cl_double	FM_L, FM_R, F1_M, F2_M;
+	cl_double	s_L, s_R, s_M, a_Avg, H_star, U_star, A_star;
+	cl_double4	pFluxL, pFluxR, pFlux;
+	cl_double2	dVel, dDis, dA;
+	bool		bLeft, bRight, bMiddle_1, bMiddle_2;
+
+#ifdef USE_ALTERNATE_CONSTRUCTS
+	uiDirectionVector = ( ( ucDirection == DOMAIN_DIR_N || ucDirection == DOMAIN_DIR_S ) ? (uint2){0,1} : (uint2){1,0} );
+
+	// Are both sides dry? Simple solution if so...
+	if (pLeft.S1 < VERY_SMALL && pRight.S1 < VERY_SMALL)
+	{
+		pFlux = (cl_double4){
+			0.0,
+				uiDirectionVector.S0 * 0.5 * GRAVITY * (
+				((pLeft.S0 + pRight.S0) / 2) * ((pLeft.S0 + pRight.S0) / 2) -
+				pLeft.S6 * (pLeft.S0 + pRight.S0)
+				),
+				uiDirectionVector.S1 * 0.5 * GRAVITY * (
+				((pLeft.S0 + pRight.S0) / 2) * ((pLeft.S0 + pRight.S0) / 2) -
+				pLeft.S6 * (pLeft.S0 + pRight.S0)
+				),
+				0.0
+		};
+
+		return pFlux;
+	}
+#else
+	uiDirectionVector = ((ucDirection == DOMAIN_DIR_N || ucDirection == DOMAIN_DIR_S) ? (uint2)(0, 1) : (uint2)(1, 0));
+
+	// Are both sides dry? Simple solution if so...
+	if (pLeft.S1 < VERY_SMALL && pRight.S1 < VERY_SMALL)
+	{
+		pFlux = (cl_double4)(
+			0.0,
+			uiDirectionVector.S0 * 0.5 * GRAVITY * (
+			((pLeft.S0 + pRight.S0) / 2) * ((pLeft.S0 + pRight.S0) / 2) -
+			pLeft.S6 * (pLeft.S0 + pRight.S0)
+			),
+			uiDirectionVector.S1 * 0.5 * GRAVITY * (
+			((pLeft.S0 + pRight.S0) / 2) * ((pLeft.S0 + pRight.S0) / 2) -
+			pLeft.S6 * (pLeft.S0 + pRight.S0)
+			),
+			0.0
+			);
+
+		return pFlux;
+	}
+#endif
+
+	// Is one side dry?
+	// -> Left
+	pLeft.S4 = (pLeft.S1 < VERY_SMALL ? 0.0 : pLeft.S2 / pLeft.S1);
+	pLeft.S5 = (pLeft.S1 < VERY_SMALL ? 0.0 : pLeft.S3 / pLeft.S1);
+
+	// -> Right
+	pRight.S4 = (pRight.S1 < VERY_SMALL ? 0.0 : pRight.S2 / pRight.S1);
+	pRight.S5 = (pRight.S1 < VERY_SMALL ? 0.0 : pRight.S3 / pRight.S1);
+
+	// Prerequisite calculations
+#ifdef USE_ALTERNATE_CONSTRUCTS
+	dVel    = (cl_double2){
+			uiDirectionVector.S0 * pLeft.S4 + uiDirectionVector.S1 * pLeft.S5,				// Left
+			uiDirectionVector.S0 * pRight.S4 + uiDirectionVector.S1 * pRight.S5				// Right
+		};
+	dDis = (cl_double2){
+			uiDirectionVector.S0 * pLeft.S2 + uiDirectionVector.S1 * pLeft.S3,				// Left
+			uiDirectionVector.S0 * pRight.S2 + uiDirectionVector.S1 * pRight.S3				// Right
+		};
+	dA = (cl_double2){
+			sqrt(GRAVITY * pLeft.S1),														// Left
+			sqrt(GRAVITY * pRight.S1)														// Right
+		};
+#else
+	dVel    = (cl_double2)( 
+				uiDirectionVector.S0 * pLeft.S4   + uiDirectionVector.S1 * pLeft.S5,		// Left
+				uiDirectionVector.S0 * pRight.S4  + uiDirectionVector.S1 * pRight.S5		// Right
+			);
+	dDis    = (cl_double2)( 
+				uiDirectionVector.S0 * pLeft.S2   + uiDirectionVector.S1 * pLeft.S3,		// Left
+				uiDirectionVector.S0 * pRight.S2  + uiDirectionVector.S1 * pRight.S3		// Right
+			);
+	dA      = (cl_double2)( 
+				sqrt( GRAVITY * pLeft.S1  ),												// Left
+				sqrt( GRAVITY * pRight.S1 )													// Right
+			);
+#endif
+
+	a_Avg	= ( dA.S0   + dA.S1   ) / 2;
+	H_star	= ( ( a_Avg + ( dVel.S0 - dVel.S1 )/4 ) * ( a_Avg + ( dVel.S0 - dVel.S1 )/4 ) ) / GRAVITY;
+	U_star	= ( dVel.S0 + dVel.S1 ) / 2 + dA.S0 - dA.S1;
+	A_star	= sqrt( GRAVITY * H_star );
+
+	// Calculate speed estimates
+	if ( pLeft.S1 < VERY_SMALL )
+	{
+		s_L = dVel.S1 - 2 * dA.S1;
+	} else {
+		s_L = ( ( ( dVel.S0 - dA.S0 ) > (U_star - A_star) ) ? ( U_star - A_star ) : ( dVel.S0 - dA.S0 ) );
+	}
+	if ( pRight.S1 < VERY_SMALL )
+	{
+		s_R = dVel.S0 + 2 * dA.S0;
+	} else {
+		s_R = ( ( ( dVel.S1 + dA.S1 ) < ( U_star + A_star ) ) ? ( U_star + A_star ) : ( dVel.S1 + dA.S1 ) );
+	}
+	s_M = ( s_L * pRight.S1 * ( dVel.S1 - s_R ) - s_R * pLeft.S1 * ( dVel.S0-s_L ) ) /
+			( pRight.S1 * ( dVel.S1 - s_R ) - pLeft.S1 * ( dVel.S0 - s_L ) );
+
+	// Flux on left and right
+#ifdef USE_ALTERNATE_CONSTRUCTS
+	pFluxL		= (cl_double4){
+						dDis.S0,
+						dVel.S0 * pLeft.S2 + uiDirectionVector.S0 * 0.5 * GRAVITY * ( pLeft.S0*pLeft.S0 - 2 * pLeft.S6 * pLeft.S0 ),
+						dVel.S0 * pLeft.S3 + uiDirectionVector.S1 * 0.5 * GRAVITY * ( pLeft.S0*pLeft.S0 - 2 * pLeft.S6 * pLeft.S0 ),
+						0.0
+					};
+	pFluxR		= (cl_double4){
+						dDis.S1,
+						dVel.S1 * pRight.S2 + uiDirectionVector.S0 * 0.5 * GRAVITY * ( pRight.S0*pRight.S0 - 2 * pLeft.S6 * pRight.S0 ),
+						dVel.S1 * pRight.S3 + uiDirectionVector.S1 * 0.5 * GRAVITY * ( pRight.S0*pRight.S0 - 2 * pLeft.S6 * pRight.S0 ),
+						0.0
+					};
+#else
+	pFluxL = (cl_double4)(
+		dDis.S0,
+		dVel.S0 * pLeft.S2 + uiDirectionVector.S0 * 0.5 * GRAVITY * (pLeft.S0*pLeft.S0 - 2 * pLeft.S6 * pLeft.S0),
+		dVel.S0 * pLeft.S3 + uiDirectionVector.S1 * 0.5 * GRAVITY * (pLeft.S0*pLeft.S0 - 2 * pLeft.S6 * pLeft.S0),
+		0.0
+		);
+	pFluxR = (cl_double4)(
+		dDis.S1,
+		dVel.S1 * pRight.S2 + uiDirectionVector.S0 * 0.5 * GRAVITY * (pRight.S0*pRight.S0 - 2 * pLeft.S6 * pRight.S0),
+		dVel.S1 * pRight.S3 + uiDirectionVector.S1 * 0.5 * GRAVITY * (pRight.S0*pRight.S0 - 2 * pLeft.S6 * pRight.S0),
+		0.0
+		);
+#endif
+
+	// Selection of the final result
+	bLeft			= s_L >= 0.0;
+	bMiddle_1		= s_L <  0.0 && s_R >= 0.0 && s_M >= 0.0;
+	bMiddle_2		= s_L <  0.0 && s_R >= 0.0 && !bMiddle_1;
+	bRight			= !bLeft && !bMiddle_1 && !bMiddle_2;
+
+	if ( bLeft )  
+	{
+		#ifdef DEBUG_OUTPUT
+		if ( bDebug )
+		{
+			printf( "(Dir %i) Using left fluxes\n", ucDirection );
+		}
+		#endif
+		return pFluxL;
+	}
+	if ( bRight ) 
+	{
+		#ifdef DEBUG_OUTPUT
+		if ( bDebug )
+		{
+			printf( "(Dir %i) Using right fluxes\n", ucDirection );
+		}
+		#endif
+		return pFluxR;
+	}
+
+	FM_L	= uiDirectionVector.S0 * pFluxL.y + uiDirectionVector.S1 * pFluxL.z;
+	FM_R	= uiDirectionVector.S0 * pFluxR.y + uiDirectionVector.S1 * pFluxR.z;
+	F1_M	= ( s_R * pFluxL.x - s_L * pFluxR.x + s_L * s_R * ( pRight.S0 - pLeft.S0 ) ) / ( s_R - s_L );
+	F2_M	= ( s_R * FM_L     - s_L * FM_R     + s_L * s_R * ( dDis.S1   - dDis.S0  ) ) / ( s_R - s_L );
+
+#ifdef USE_ALTERNATE_CONSTRUCTS
+	if ( bMiddle_1 )
+	{
+		pFlux = (cl_double4){
+			F1_M,
+			uiDirectionVector.S0 * F2_M + uiDirectionVector.S1 * F1_M * pLeft.S4,
+			uiDirectionVector.S0 * F1_M * pLeft.S5 + uiDirectionVector.S1 * F2_M,
+			0.0
+		};
+	}
+
+	if (bMiddle_2)
+	{
+		pFlux = (cl_double4){
+			F1_M,
+			uiDirectionVector.S0 * F2_M + uiDirectionVector.S1 * F1_M * pRight.S4,
+			uiDirectionVector.S0 * F1_M * pRight.S5 + uiDirectionVector.S1 * F2_M,
+			0.0
+		};
+	}
+#else
+	if ( bMiddle_1 )
+	{
+		pFlux = (cl_double4)(
+			F1_M,
+			uiDirectionVector.S0 * F2_M + uiDirectionVector.S1 * F1_M * pLeft.S4,
+			uiDirectionVector.S0 * F1_M * pLeft.S5 + uiDirectionVector.S1 * F2_M,
+			0.0
+		);
+	}
+
+	if ( bMiddle_2 )
+	{
+		pFlux = (cl_double4)(
+			F1_M,
+			uiDirectionVector.S0 * F2_M + uiDirectionVector.S1 * F1_M * pRight.S4,
+			uiDirectionVector.S0 * F1_M * pRight.S5 + uiDirectionVector.S1 * F2_M,
+			0.0
+		);
+	}
+#endif
+
+	return pFlux;
+}

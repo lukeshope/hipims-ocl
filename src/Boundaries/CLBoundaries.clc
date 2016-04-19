@@ -1,0 +1,247 @@
+/*
+ * ------------------------------------------
+ *
+ *  HIGH-PERFORMANCE INTEGRATED MODELLING SYSTEM (HiPIMS)
+ *  Luke S. Smith and Qiuhua Liang
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  This code is licensed under GPLv3. See LICENCE
+ *  for more information.
+ * ------------------------------------------
+ *  BOUNDARY CONDITIONS
+ * ------------------------------------------
+ *  Management functions for a domain
+ *  boundaries.
+ * ------------------------------------------
+ *
+ */
+
+__kernel void bdy_Cell (
+	__constant		sBdyCellConfiguration *		pConfiguration,
+	__global		cl_ulong const * restrict	pRelations,
+	__global		cl_double4 const * restrict pTimeseries,
+	__global		cl_double *					pTime,
+	__global		cl_double *					pTimestep,
+	__global		cl_double *					pTimeHydrological,
+	__global		cl_double4 *				pCellState,
+	__global		cl_double *					pCellBed,
+	__global		cl_double *					pCellManning
+	)
+{
+	__private cl_long				lRelationID		= get_global_id(0);
+	__private sBdyCellConfiguration pConfig			= *pConfiguration;
+	__private cl_double				dLocalTime		= *pTime;
+	__private cl_double				dLocalTimestep  = *pTimestep;
+
+	if (lRelationID >= pConfig.RelationCount || dLocalTime >= pConfig.TimeseriesLength || dLocalTimestep <= 0.0)
+		return;
+
+	__private cl_ulong				ulBaseTimestep  = (cl_ulong)floor( dLocalTime / pConfig.TimeseriesInterval );
+	__private cl_ulong				ulNextTimestep  = ulBaseTimestep + 1;
+	__private cl_ulong				ulCellID		= pRelations[lRelationID];
+	__private cl_double4			pCellData		= pCellState[ulCellID];
+	__private cl_double				dCellBed		= pCellBed[ulCellID];
+	__private cl_double4			pTSBase			= pTimeseries[ulBaseTimestep];
+	__private cl_double4			pTSNext			= pTimeseries[ulNextTimestep];
+
+	// Interpolate between timesteps
+	__private cl_double4			pTSInterp = pTSBase + (pTSNext - pTSBase) * ( fmod(dLocalTime, pConfig.TimeseriesInterval ) / pConfig.TimeseriesInterval);
+
+	// Apply depth/fsl
+	if ((pConfig.Definition & BOUNDARY_DEFINED_LEVEL) != 0 &&
+		(pConfig.Definition & BOUNDARY_DEFINEDAS_DEPTH) != 0)
+	{
+		#ifdef DEBUG_OUTPUT
+		printf("Depth is fixed.\n");
+		#endif
+		pCellData.x = dCellBed + pTSInterp.y;			// Depth is fixed
+	}
+	else if ((pConfig.Definition & BOUNDARY_DEFINED_LEVEL) != 0)
+	{
+		#ifdef DEBUG_OUTPUT
+		printf("FSL is fixed.\n");
+		#endif
+		pCellData.x = fmax(dCellBed, pTSInterp.y);		// FSL is fixed
+	}
+	else
+	{
+		#ifdef DEBUG_OUTPUT
+		printf("Depth and FSL are free.\n");
+		#endif
+		if (fabs(pTSInterp.z) > VERY_SMALL ||
+			fabs(pTSInterp.w) > VERY_SMALL /* ||
+			(pConfig.Definition & (cl_ulong)(BOUNDARY_DEFINEDAS_FLOWSURGE)) == (cl_ulong)(BOUNDARY_DEFINEDAS_FLOWSURGE) */)
+		{
+			// Calculate a suitable depth based
+			__private cl_double dDepth = (fabs(pTSInterp.z) * dLocalTimestep) / DOMAIN_DELTAY + (fabs(pTSInterp.w) * dLocalTimestep) / DOMAIN_DELTAX;
+			__private cl_double dNormalDepth = fmax(pown(pTSInterp.z, 2) / GRAVITY, pown(pTSInterp.w, 2) / GRAVITY);
+			__private cl_double dCriticalDepth = fmax(pow(pow(pTSInterp.z, 2) / GRAVITY, 1.0 / 3.0), pow(pow(pTSInterp.w, 2) / GRAVITY, 1.0 / 3.0));
+
+			// Not going to impose a direction if we're trying to represent
+			// a surging discharge rate (e.g. manhole surge)
+			//if ((pConfig.Definition & (cl_ulong)(BOUNDARY_DEFINEDAS_FLOWSURGE)) == (cl_ulong)(BOUNDARY_DEFINEDAS_FLOWSURGE))
+			//{
+				// In the case of volume boundaries, no scaling has taken place
+				dNormalDepth = 0.0;
+				dDepth = (fabs(pTSInterp.z) * dLocalTimestep) / (DOMAIN_DELTAX * DOMAIN_DELTAY);
+				dCriticalDepth = 0.0;
+				pTSInterp.z = 0.0;
+				pTSInterp.w = 0.0;
+			//}
+			
+			pCellData.x = fmax(dCellBed + dCriticalDepth, pCellData.x + dDepth);
+			
+			#ifdef DEBUG_OUTPUT
+			printf("Setting depth as %f.\n", dDepth);
+			#endif
+		}
+	}
+
+	if ((pConfig.Definition & BOUNDARY_DEFINED_FLOWX) != 0 &&
+		(pConfig.Definition & BOUNDARY_DEFINEDAS_DISCHARGE) != 0)
+	{
+		// Apply flow in X direction
+		pCellData.z = pTSInterp.z;
+	} else if ((pConfig.Definition & BOUNDARY_DEFINED_FLOWX) != 0) {
+		// Apply velocity in X direction
+		pCellData.z = pTSInterp.z * (pCellData.x - dCellBed);
+	}
+
+	if ((pConfig.Definition & BOUNDARY_DEFINED_FLOWY) != 0 &&
+		(pConfig.Definition & BOUNDARY_DEFINEDAS_DISCHARGE) != 0)
+	{
+		// Apply flow in Y direction
+		pCellData.w = pTSInterp.w;
+	} else if ((pConfig.Definition & BOUNDARY_DEFINED_FLOWY) != 0) {
+		// Apply velocity in X direction
+		pCellData.w = pTSInterp.w * (pCellData.x - dCellBed);
+	}
+
+	#ifdef DEBUG_OUTPUT
+	printf("Final Cell Data:       { %f, %f, %f, %f }\n", pCellData.x, pCellData.y, pCellData.z, pCellData.w);
+	#endif
+
+	pCellState[ ulCellID ] = pCellData;
+}
+
+__kernel void bdy_Uniform(
+	__constant		sBdyUniformConfiguration *	pConfiguration,
+	__global		cl_double2 const * restrict	pTimeseries,
+	__global		cl_double *					pTime,
+	__global		cl_double *					pTimestep,
+	__global		cl_double *					pTimeHydrological,
+	__global		cl_double4 *				pCellState,
+	__global		cl_double *					pCellBed,
+	__global		cl_double *					pCellManning
+	)
+{
+	// Which global series are we processing, and which cell
+	// Global ID is X, Y cell, then Z for the series
+	__private cl_long		lIdxX = get_global_id(0);
+	__private cl_long		lIdxY = get_global_id(1);
+	__private cl_ulong		ulIdx;
+
+	// Don't bother if we've gone beyond the domain bounds
+	if (lIdxX >= DOMAIN_COLS - 1 ||
+		lIdxY >= DOMAIN_ROWS - 1 ||
+		lIdxX <= 0 ||
+		lIdxY <= 0)
+		return;
+
+	ulIdx = getCellID(lIdxX, lIdxY);
+
+	// How far in to the simulation are we? And current cell data
+	__private sBdyUniformConfiguration	pConfig			= *pConfiguration;
+	__private cl_double4				pCellData		= pCellState[ulIdx];
+	__private cl_double					dCellBedElev	= pCellBed[ulIdx];
+	__private cl_double					dLclTime		= *pTime;
+	__private cl_double					dLclRealTimestep= *pTimestep;
+	__private cl_double					dLclTimestep	= *pTimeHydrological;
+
+	// Hydrological processes have their own timesteps
+	if (dLclTimestep < TIMESTEP_HYDROLOGICAL || dLclRealTimestep <= 0.0)
+		return;
+
+	if ( dLclTime >= pConfig.TimeseriesLength )
+		return;
+
+	// Calculate the right cell and stuff to be grabbing data from here...
+	__private cl_ulong ulTimestep = (cl_ulong)floor(dLclTime / pConfig.TimeseriesInterval);
+	__private cl_double2 dRecord = pTimeseries[ulTimestep];
+
+	// Apply the value...
+	if (pConfig.Definition == BOUNDARY_UNIFORM_RAIN_INTENSITY)
+		pCellData.x += dRecord.y / 3600000.0 * dLclTimestep;
+
+	if (pConfig.Definition == BOUNDARY_UNIFORM_LOSS_RATE)
+		pCellData.x = max(dCellBedElev, pCellData.x - dRecord.y / 3600000.0 * dLclTimestep);
+
+	// Return to global memory
+	pCellState[ulIdx] = pCellData;
+}
+
+__kernel void bdy_Gridded (
+	__constant		sBdyGriddedConfiguration *	pConfiguration,
+	__global		cl_double const * restrict	pTimeseries,
+	__global		cl_double *					pTime,
+	__global		cl_double *					pTimestep,
+	__global		cl_double *					pTimeHydrological,
+	__global		cl_double4 *				pCellState,
+	__global		cl_double *					pCellBed,
+	__global		cl_double *					pCellManning
+	)
+{
+	// Which global series are we processing, and which cell
+	// Global ID is X, Y cell, then Z for the series
+	__private cl_long		lIdxX = get_global_id(0);
+	__private cl_long		lIdxY = get_global_id(1);
+	__private cl_ulong		ulIdx;
+
+	// Don't bother if we've gone beyond the domain bounds
+	if (lIdxX >= DOMAIN_COLS - 1 ||
+		lIdxY >= DOMAIN_ROWS - 1 ||
+		lIdxX <= 0 ||
+		lIdxY <= 0 )
+		return;
+
+	ulIdx = getCellID(lIdxX, lIdxY);
+
+	// How far in to the simulation are we? And current cell data
+	__private sBdyGriddedConfiguration	pConfig			= *pConfiguration;
+	__private cl_double4				pCellData		= pCellState[ulIdx];
+	__private cl_double					dCellBedElev	= pCellBed[ulIdx];
+	__private cl_double					dLclTime		= *pTime;
+	__private cl_double					dLclTimestep	= *pTimeHydrological;
+
+	// Cell disabled?
+	if (pCellData.y <= -9999.0 || pCellData.x == -9999.0)
+		return;
+
+	// Hydrological processes have their own timesteps
+	if (dLclTimestep < TIMESTEP_HYDROLOGICAL)
+		return;
+
+	// Calculate the right cell and stuff to be grabbing data from here...
+	__private cl_ulong ulTimestep = (cl_ulong)floor( dLclTime / pConfig.TimeseriesInterval );
+	if ( ulTimestep >= pConfig.TimeseriesEntries ) ulTimestep = pConfig.TimeseriesEntries;
+
+	__private cl_double ulColumn  = floor( ( ( (cl_double)lIdxX * (cl_double)DOMAIN_DELTAX ) - pConfig.GridOffsetX ) / pConfig.GridResolution );
+	__private cl_double ulRow     = floor( ( ( (cl_double)lIdxY * (cl_double)DOMAIN_DELTAY ) - pConfig.GridOffsetY ) / pConfig.GridResolution );
+	__private cl_ulong ulBdyCell  = ( pConfig.GridRows * pConfig.GridCols ) * ulTimestep +
+									( pConfig.GridCols * (cl_ulong)ulRow ) + (cl_ulong)ulColumn;
+	__private cl_double dRate	  = pTimeseries[ ulBdyCell ];
+
+	// Apply the value...
+	if ( pConfig.Definition == BOUNDARY_GRIDDED_RAIN_INTENSITY )
+		pCellData.x += dRate / 3600000.0 * dLclTimestep;
+
+	if ( pConfig.Definition == BOUNDARY_GRIDDED_MASS_FLUX )
+		pCellData.x += dRate / ( (cl_double)DOMAIN_DELTAX * (cl_double)DOMAIN_DELTAY ) * dLclTimestep;
+
+	// Return to global memory
+	pCellState[ulIdx] = pCellData;
+}

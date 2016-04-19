@@ -1,3 +1,7 @@
+# Debug files
+_model.log
+_debug*.log
+
 # Compiled Object files
 *.slo
 *.lo

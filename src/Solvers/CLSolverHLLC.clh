@@ -1,0 +1,34 @@
+/*
+ * ------------------------------------------
+ *
+ *  HIGH-PERFORMANCE INTEGRATED MODELLING SYSTEM (HiPIMS)
+ *  Luke S. Smith and Qiuhua Liang
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  This code is licensed under GPLv3. See LICENCE
+ *  for more information.
+ * ------------------------------------------
+ *  Header file
+ *  HLLC APPROXIMATE RIEMANN SOLVER
+ * ------------------------------------------
+ *  Implementation of the approximate HLLC
+ *  Riemann solver for the GPU.
+ * ------------------------------------------
+ *
+ */
+
+#ifdef USE_FUNCTION_STUBS
+
+// Function definitions
+cl_double4	riemannSolver(
+	cl_uchar,
+	cl_double8,
+	cl_double8,
+	bool
+);
+
+#endif

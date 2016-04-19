@@ -1,0 +1,1230 @@
+/*
+ * ------------------------------------------
+ *
+ *  HIGH-PERFORMANCE INTEGRATED MODELLING SYSTEM (HiPIMS)
+ *  Luke S. Smith and Qiuhua Liang
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  This code is licensed under GPLv3. See LICENCE
+ *  for more information.
+ * ------------------------------------------
+ *  MUSCL-HANCOCK SCHEME
+ * ------------------------------------------
+ *  Implementation of the 2nd order accurate
+ *  MUSCL-Hancock Godunov-type scheme for
+ *  execution on the GPU.
+ * ------------------------------------------
+ *
+ */
+
+/*
+ *  Calculate everything for the first step of calculation
+ *  Cache mode: No local caching required
+ */
+__kernel REQD_WG_SIZE_HALF_TS
+void mch_1st_cacheNone ( 
+			__constant	cl_double *  				dTimestep,						// Timestep
+			__global	cl_double const * restrict	dBedElevation,					// Bed elevation
+			__global	cl_double4 *  			pCellState,						// Current cell state data
+			#ifdef MEM_SEPARATE_FACES
+			__global	cl_double4 *  			pCellExtrapolatedN,				// Target extrapolated data
+			__global	cl_double4 *  			pCellExtrapolatedE,				// Target extrapolated data
+			__global	cl_double4 *  			pCellExtrapolatedS,				// Target extrapolated data
+			__global	cl_double4 *  			pCellExtrapolatedW				// Target extrapolated data
+			#endif
+			#ifdef MEM_CONTIGUOUS_FACES
+			__global	sFaceStructure *  		pCellExtrapolated				// Target extrapolated data
+			#endif
+		)
+{
+
+	// Identify the cell we're reconstructing (no overlap)
+	__private cl_long					lIdxX			= get_global_id(0);
+	__private cl_long					lIdxY			= get_global_id(1);
+	__private cl_ulong					ulIdx, ulIdxNeig;
+	__private cl_uchar					ucDirection;
+	
+	ulIdx = getCellID(lIdxX, lIdxY);
+
+	// Don't bother if we've gone beyond the domain bounds
+	if ( lIdxX >= DOMAIN_COLS - 1 || 
+		 lIdxY >= DOMAIN_ROWS - 1 || 
+		 lIdxX <= 0 || 
+		 lIdxY <= 0 ) 
+		return;
+
+	__private cl_double		dLclTimestep	= *dTimestep;
+	__private cl_double		dCellBedElev,dNeigBedElevN,dNeigBedElevE,dNeigBedElevS,dNeigBedElevW;
+	__private cl_double4	pCellData,pNeigDataN,pNeigDataE,pNeigDataS,pNeigDataW;					// Z, Zmax, Qx, Qy
+	__private cl_double4	pExtrapolationN,pExtrapolationE,pExtrapolationS,pExtrapolationW;		// Z, H, Qx, Qy
+
+	// Also don't bother if we've gone beyond the total simulation time
+	if ( dLclTimestep <= 0.0 )
+		return;
+
+	// Load cell data
+	dCellBedElev		= dBedElevation[ ulIdx ];
+	pCellData			= pCellState[ ulIdx ];
+
+	ucDirection = DOMAIN_DIR_W;
+	ulIdxNeig = getNeighbourByIndices(lIdxX, lIdxY, ucDirection);
+	dNeigBedElevW	= dBedElevation [ ulIdxNeig ];
+	pNeigDataW		= pCellState	[ ulIdxNeig ];
+	ucDirection = DOMAIN_DIR_S;
+	ulIdxNeig = getNeighbourByIndices(lIdxX, lIdxY, ucDirection);
+	dNeigBedElevS	= dBedElevation [ ulIdxNeig ];
+	pNeigDataS		= pCellState	[ ulIdxNeig ];
+	ucDirection = DOMAIN_DIR_N;
+	ulIdxNeig = getNeighbourByIndices(lIdxX, lIdxY, ucDirection);
+	dNeigBedElevN	= dBedElevation [ ulIdxNeig ];
+	pNeigDataN		= pCellState	[ ulIdxNeig ];
+	ucDirection = DOMAIN_DIR_E;
+	ulIdxNeig = getNeighbourByIndices(lIdxX, lIdxY, ucDirection);
+	dNeigBedElevE	= dBedElevation [ ulIdxNeig ];
+	pNeigDataE		= pCellState	[ ulIdxNeig ];
+
+	// Cell disabled? Can only skip this cell if all of the neighbours
+	// are also disabled.
+	if ( pCellData.y <= -9999.0 && 
+		 pNeigDataN.y <= -9999.0 && 
+		 pNeigDataE.y <= -9999.0 &&
+		 pNeigDataS.y <= -9999.0 &&
+		 pNeigDataW.y <= -9999.0 )
+		return;
+
+	#ifdef DEBUG_OUTPUT
+	if ( lIdxX == DEBUG_CELLX && lIdxY == DEBUG_CELLY )
+	{
+		printf( "Current data:  { %f, %f, %f, %f )\n", pCellData.x, pCellData.y, pCellData.z, pCellData.w );
+	}
+	#endif
+
+	mch_1st(
+		dLclTimestep,
+		pCellData,
+		pNeigDataN,
+		pNeigDataE,
+		pNeigDataS,
+		pNeigDataW,
+		dCellBedElev,
+		dNeigBedElevN,
+		dNeigBedElevE,
+		dNeigBedElevS,
+		dNeigBedElevW,
+		&pExtrapolationN,
+		&pExtrapolationE,
+		&pExtrapolationS,
+		&pExtrapolationW
+	);
+
+	// Debug info
+	#ifdef DEBUG_OUTPUT
+	if ( lIdxX == DEBUG_CELLX && lIdxY == DEBUG_CELLY )
+	{
+		printf( "Forecast data: { %f, %f, %f, %f )\n", pCellData.x, pCellData.y, pCellData.z, pCellData.w );
+		printf( "Bed elevation: %f\n", dCellBedElev );
+		printf( "Extrap Face N: { %f, %f, %f, %f )\n", pExtrapolationN.x, pExtrapolationN.y, pExtrapolationN.z, pExtrapolationN.w );
+		printf( "Extrap Face E: { %f, %f, %f, %f )\n", pExtrapolationE.x, pExtrapolationE.y, pExtrapolationE.z, pExtrapolationE.w );
+		printf( "Extrap Face S: { %f, %f, %f, %f )\n", pExtrapolationS.x, pExtrapolationS.y, pExtrapolationS.z, pExtrapolationS.w );
+		printf( "Extrap Face W: { %f, %f, %f, %f )\n", pExtrapolationW.x, pExtrapolationW.y, pExtrapolationW.z, pExtrapolationW.w );
+	}
+	#endif
+
+	// Commit to global memory
+	#ifdef MEM_SEPARATE_FACES
+		pCellExtrapolatedN[ ulIdx ] = pExtrapolationN;
+		pCellExtrapolatedE[ ulIdx ] = pExtrapolationE;
+		pCellExtrapolatedS[ ulIdx ] = pExtrapolationS;
+		pCellExtrapolatedW[ ulIdx ] = pExtrapolationW;
+	#endif
+	#ifdef MEM_CONTIGUOUS_FACES 
+		__private sFaceStructure	pExtrapolatedFaces;
+		pExtrapolatedFaces.pN = pExtrapolationN;
+		pExtrapolatedFaces.pE = pExtrapolationE;
+		pExtrapolatedFaces.pS = pExtrapolationS;
+		pExtrapolatedFaces.pW = pExtrapolationW;
+		pCellExtrapolated[ ulIdx ] = pExtrapolatedFaces;
+	#endif
+}
+
+/*
+ *  Calculate everything for the first step of calculation
+ *  Cache mode: Local memory used for prediction only
+ */
+__kernel REQD_WG_SIZE_HALF_TS
+void mch_1st_cachePrediction ( 
+			__constant	cl_double *  				dTimestep,						// Timestep
+			__global	cl_double const * restrict	dBedElevation,					// Bed elevation
+			__global	cl_double4 *  			pCellState,						// Current cell state data
+			#ifdef MEM_SEPARATE_FACES
+			__global	cl_double4 *  			pCellExtrapolatedN,				// Target extrapolated data
+			__global	cl_double4 *  			pCellExtrapolatedE,				// Target extrapolated data
+			__global	cl_double4 *  			pCellExtrapolatedS,				// Target extrapolated data
+			__global	cl_double4 *  			pCellExtrapolatedW				// Target extrapolated data
+			#endif
+			#ifdef MEM_CONTIGUOUS_FACES
+			__global	sFaceStructure *  		pCellExtrapolated				// Target extrapolated data
+			#endif
+		)
+{
+	// Oversized in one dimension to avoid bank conflicts. Needs further research.
+	__local   cl_double4				lpCellState[ MCH_STG1_DIM1 ][ MCH_STG1_DIM2 ];			// Current cell state data (cache)
+
+	// Identify the cell we're reconstructing and handle the overlapping workgroups
+	__private cl_double					dLclTimestep;
+	__private cl_long					lIdxX			= get_global_id(0) - get_group_id(0) * 2;
+	__private cl_long					lIdxY			= get_global_id(1) - get_group_id(1) * 2;
+	__private cl_long					lLocalX			= get_local_id(0);
+	__private cl_long					lLocalY			= get_local_id(1);
+	__private cl_ulong					lLocalSizeX		= get_local_size(0);
+	__private cl_ulong					lLocalSizeY		= get_local_size(1);
+	__private cl_ulong					ulIdx;
+	__private cl_double4				pCellData;
+	__private cl_double					dCellBedElev;
+	
+	if ( lIdxX <= DOMAIN_COLS - 1 &&
+		 lIdxY <= DOMAIN_ROWS - 1 && 
+		 lIdxX >= 0 &&
+		 lIdxY >= 0 )
+	{
+		// Populate cache data
+		ulIdx = getCellID(lIdxX, lIdxY);
+
+		// The max FSL is substituted with the bed elevation, thereby reducing LDS consumption
+		dLclTimestep							= *dTimestep;
+		pCellData								= pCellState[ ulIdx ];
+		dCellBedElev							= dBedElevation[ ulIdx ];
+		lpCellState[ lLocalX ][ lLocalY ]		= (cl_double4)( pCellData.x, dCellBedElev, pCellData.z, pCellData.w );
+	}
+
+	barrier( CLK_LOCAL_MEM_FENCE );
+
+	// Don't bother if we've gone beyond the domain bounds
+	if ( lIdxX >= DOMAIN_COLS - 1 || 
+		 lIdxY >= DOMAIN_ROWS - 1 || 
+		 lIdxX <= 0 || 
+		 lIdxY <= 0 ||
+		 lLocalX >= lLocalSizeX - 1 ||
+		 lLocalY >= lLocalSizeY - 1 ||
+		 lLocalX <= 0 ||
+		 lLocalY <= 0 ) 
+		return;
+
+	__private cl_double		dNeigBedElevN,dNeigBedElevE,dNeigBedElevS,dNeigBedElevW;
+	__private cl_double4	pNeigDataN,pNeigDataE,pNeigDataS,pNeigDataW;							// Z, Zmax, Qx, Qy
+	__private cl_double4	pExtrapolationN,pExtrapolationE,pExtrapolationS,pExtrapolationW;		// Z, H, Qx, Qy
+
+	// Also don't bother if we've gone beyond the total simulation time
+	if ( dLclTimestep <= 0.0 )
+		return;
+
+	#ifdef DEBUG_OUTPUT
+	if ( lIdxX == DEBUG_CELLX && lIdxY == DEBUG_CELLY )
+	{
+		printf( "Current data:  { %f, %f, %f, %f )\n", pCellData.x, pCellData.y, pCellData.z, pCellData.w );
+	}
+	#endif
+
+	pNeigDataW		= lpCellState	[ lLocalX - 1 ][ lLocalY ];
+	dNeigBedElevW	= pNeigDataW.y;
+	pNeigDataS		= lpCellState	[ lLocalX ][ lLocalY - 1 ];
+	dNeigBedElevS	= pNeigDataS.y;
+	pNeigDataN		= lpCellState	[ lLocalX ][ lLocalY + 1 ];
+	dNeigBedElevN	= pNeigDataN.y;
+	pNeigDataE		= lpCellState	[ lLocalX + 1 ][ lLocalY ];
+	dNeigBedElevE	= pNeigDataE.y;
+
+	// Cell disabled? Can only skip this cell if all of the neighbours
+	// are also disabled.
+	if ( pCellData.y == -9999.0 && 
+		 pNeigDataN.y == -9999.0 && 
+		 pNeigDataE.y == -9999.0 &&
+		 pNeigDataS.y == -9999.0 &&
+		 pNeigDataW.y == -9999.0 )
+		return;
+
+	mch_1st(
+		dLclTimestep,
+		pCellData,
+		pNeigDataN,
+		pNeigDataE,
+		pNeigDataS,
+		pNeigDataW,
+		dCellBedElev,
+		dNeigBedElevN,
+		dNeigBedElevE,
+		dNeigBedElevS,
+		dNeigBedElevW,
+		&pExtrapolationN,
+		&pExtrapolationE,
+		&pExtrapolationS,
+		&pExtrapolationW
+	);
+
+	// Debug info
+	#ifdef DEBUG_OUTPUT
+	if ( lIdxX == DEBUG_CELLX && lIdxY == DEBUG_CELLY )
+	{
+		printf( "Forecast data: { %f, %f, %f, %f )\n", pCellData.x, pCellData.y, pCellData.z, pCellData.w );
+		printf( "Bed elevation: %f\n", dCellBedElev );
+		printf( "Extrap Face N: { %f, %f, %f, %f )\n", pExtrapolationN.x, pExtrapolationN.y, pExtrapolationN.z, pExtrapolationN.w );
+		printf( "Extrap Face E: { %f, %f, %f, %f )\n", pExtrapolationE.x, pExtrapolationE.y, pExtrapolationE.z, pExtrapolationE.w );
+		printf( "Extrap Face S: { %f, %f, %f, %f )\n", pExtrapolationS.x, pExtrapolationS.y, pExtrapolationS.z, pExtrapolationS.w );
+		printf( "Extrap Face W: { %f, %f, %f, %f )\n", pExtrapolationW.x, pExtrapolationW.y, pExtrapolationW.z, pExtrapolationW.w );
+	}
+	#endif
+
+	// Commit to global memory
+	#ifdef MEM_SEPARATE_FACES
+		pCellExtrapolatedN[ ulIdx ] = pExtrapolationN;
+		pCellExtrapolatedE[ ulIdx ] = pExtrapolationE;
+		pCellExtrapolatedS[ ulIdx ] = pExtrapolationS;
+		pCellExtrapolatedW[ ulIdx ] = pExtrapolationW;
+	#endif
+	#ifdef MEM_CONTIGUOUS_FACES 
+		__private sFaceStructure	pExtrapolatedFaces;
+		pExtrapolatedFaces.pN = pExtrapolationN;
+		pExtrapolatedFaces.pE = pExtrapolationE;
+		pExtrapolatedFaces.pS = pExtrapolationS;
+		pExtrapolatedFaces.pW = pExtrapolationW;
+		pCellExtrapolated[ ulIdx ] = pExtrapolatedFaces;
+	#endif
+}
+
+/*
+ *  Calculate the 1st stage of the MUSCL-Hancock scheme and half-timestep evolve the face states
+ */
+bool mch_1st (
+			cl_double	 dLclTimestep,
+			cl_double4   pCellData,
+			cl_double4   pNeigDataN,
+			cl_double4   pNeigDataE,
+			cl_double4   pNeigDataS,
+			cl_double4   pNeigDataW,
+			cl_double    dCellBedElev,
+			cl_double    dNeigBedElevN,
+			cl_double    dNeigBedElevE,
+			cl_double    dNeigBedElevS,
+			cl_double    dNeigBedElevW,
+			cl_double4 * pExtrapolationN,
+			cl_double4 * pExtrapolationE,
+			cl_double4 * pExtrapolationS,
+			cl_double4 * pExtrapolationW
+		)
+{
+	cl_double4 pSlopeX, pSlopeY;
+	cl_double4 pFluxN, pFluxE, pFluxS, pFluxW;
+	bool bFirstOrder = false;
+
+	// Dry cells (or nearly dry...) and boundary
+	// cells.
+	if ( pCellData.x - dCellBedElev < 1E-5 || 
+		 pNeigDataN.y <= -9998.0 ||
+		 pNeigDataE.y <= -9998.0 ||
+		 pNeigDataS.y <= -9998.0 ||
+		 pNeigDataW.y <= -9998.0 )
+		bFirstOrder = true;
+
+	// Default is to resort to first-order 
+	pCellData.y = pCellData.x - dCellBedElev;						// 2nd element becomes depth...
+	*pExtrapolationN = pCellData;
+	*pExtrapolationE = pCellData;
+	*pExtrapolationS = pCellData;
+	*pExtrapolationW = pCellData;
+
+	if ( bFirstOrder )
+		return true;
+
+	// Slopes
+	pSlopeX	= slopeLimiter( pNeigDataW,		pCellData,		pNeigDataE,			// Slope X
+							dNeigBedElevW,	dCellBedElev,	dNeigBedElevE );
+	pSlopeY	= slopeLimiter( pNeigDataS,		pCellData,		pNeigDataN,			// Slope Y
+							dNeigBedElevS,	dCellBedElev,	dNeigBedElevN );
+
+	// Extrapolation to faces at the current timestep
+	*pExtrapolationN = faceExtrapolate( dCellBedElev, pCellData, pSlopeY, +0.5 );	// North
+	*pExtrapolationE = faceExtrapolate( dCellBedElev, pCellData, pSlopeX, +0.5 );	// East
+	*pExtrapolationS = faceExtrapolate( dCellBedElev, pCellData, pSlopeY, -0.5 );	// South
+	*pExtrapolationW = faceExtrapolate( dCellBedElev, pCellData, pSlopeX, -0.5 );	// West
+
+	// Evaluate the estimated flux vectors
+	pFluxN		  = estimateFluxVectorY( *pExtrapolationN );						// North
+	pFluxE		  = estimateFluxVectorX( *pExtrapolationE );						// East
+	pFluxS		  = estimateFluxVectorY( *pExtrapolationS );						// South
+	pFluxW		  = estimateFluxVectorX( *pExtrapolationW );						// West
+
+	// Calculate the half-evolved timestep
+	// Dry cell remains unchanged
+	pCellData	  = evolveCellState(
+						dLclTimestep,
+						pCellData,
+						*pExtrapolationN,
+						*pExtrapolationE,
+						*pExtrapolationS,
+						*pExtrapolationW,
+						pFluxN,
+						pFluxE,
+						pFluxS,
+						pFluxW
+					);
+
+	// Extrapolation to faces for values that are half-timestep evolved
+	*pExtrapolationN = faceExtrapolate( dCellBedElev, pCellData, pSlopeY, +0.5 );	// North
+	*pExtrapolationE = faceExtrapolate( dCellBedElev, pCellData, pSlopeX, +0.5 );	// East
+	*pExtrapolationS = faceExtrapolate( dCellBedElev, pCellData, pSlopeY, -0.5 );	// South
+	*pExtrapolationW = faceExtrapolate( dCellBedElev, pCellData, pSlopeX, -0.5 );	// West
+
+	return false;
+}
+
+
+
+/*
+ *  Extrapolate face data using a slope
+ */
+cl_double4 faceExtrapolate ( 
+			cl_double 				dBedElevation,			// Bed elevation
+			cl_double4 				pCellState,				// Central cell data
+			cl_double4 				pSlope,					// Slope
+			cl_double				dCoefficient			// Coefficient
+		)
+{
+	cl_double4				pResult;
+
+	// Extrapolate
+	pResult   = pCellState + dCoefficient * pSlope;
+	pResult.y = ( pCellState.x - dBedElevation ) + dCoefficient * pSlope.y;
+
+	return pResult;
+}
+
+/*
+ *  Calculate an extrapolated value for face data using a slope
+ */
+cl_double calculateFaceExtrapolation ( 
+			cl_double 				dValue,					// Central cell data
+			cl_double 				dSlope,					// Slope
+			cl_double				dCoefficient			// Coefficient
+		)
+{
+	return dValue + dCoefficient * dSlope;
+}
+
+/*
+ *  Calculate fluxes using extrapolated face data (X-direction)
+ */
+cl_double4 estimateFluxVectorX ( 
+			cl_double4 				pFaceState				// Source extrapolated data
+		)
+{
+	/*
+	 *  x	= FS Level
+	 *  y	= Depth
+	 *  z	= Discharge X
+	 *  w	= Discharge Y
+	 */
+
+	// Evaluate the flux vector
+	cl_double4		pFlux;
+	cl_double	dVelocityX	 = ( pFaceState.y < VERY_SMALL ? 0.0 : pFaceState.z / pFaceState.y );
+
+	// X-direction
+	pFlux.x = pFaceState.z;											// Qx
+	pFlux.y = dVelocityX * pFaceState.z								// U * Qx + 0.5 * g * ( Z^2 - 2( Zb * Z ) )
+				+ 0.5 * GRAVITY * ( ( pFaceState.x * pFaceState.x )		
+				- 2 * ( pFaceState.x - pFaceState.y ) * pFaceState.x );	
+	pFlux.z = dVelocityX * pFaceState.w;							// U * Qy
+
+	return pFlux;
+}
+
+/*
+ *  Calculate fluxes using extrapolated face data (Y-direction)
+ */
+cl_double4 estimateFluxVectorY ( 
+			cl_double4 				pFaceState				// Source extrapolated data
+		)
+{
+	/*
+	 *  x	= FS Level
+	 *  y	= Depth
+	 *  z	= Discharge X
+	 *  w	= Discharge Y
+	 */
+
+	// Evaluate the flux vector
+	cl_double4		pFlux;
+	cl_double	dVelocityY	 = ( pFaceState.y < VERY_SMALL ? 0.0 : pFaceState.w / pFaceState.y );
+
+	// Y-direction
+	pFlux.x = pFaceState.w;											// Qy
+	pFlux.y = dVelocityY * pFaceState.z;							// V * Qx
+	pFlux.z = dVelocityY * pFaceState.w								// V * Qy + 0.5 * g * Z^2 - 2( Zb * Z )
+				+ 0.5 * GRAVITY * ( ( pFaceState.x * pFaceState.x )		
+				- 2 * ( pFaceState.x - pFaceState.y ) * pFaceState.x );
+
+	return pFlux;
+}
+
+/*
+ *  Evolve the cell data for each face by a half-timestep
+ */
+cl_double4 evolveCellState ( 
+			cl_double			dTimestep,				// Timestep
+			cl_double4 			pCell,					// Current cell state data
+			cl_double4 			pCellExtrapolatedFaceN,	// Source cell state data (N)
+			cl_double4 			pCellExtrapolatedFaceE,	// Source cell state data (E)
+			cl_double4 			pCellExtrapolatedFaceS,	// Source cell state data (S)
+			cl_double4			pCellExtrapolatedFaceW,	// Source cell state data (W)
+			cl_double4 			pFluxN,					// Source flux data (N)
+			cl_double4 			pFluxE,					// Source flux data (E)
+			cl_double4 			pFluxS,					// Source flux data (S)
+			cl_double4 			pFluxW					// Source flux data (W)
+		)
+{
+	cl_double4		dSourceTerms, dDeltaValues; 
+
+	// Calculation of the source terms
+	dSourceTerms.x = 0.0;
+	dSourceTerms.y = -1 * GRAVITY * ( (pCellExtrapolatedFaceE.x + pCellExtrapolatedFaceW.x) / 2 ) * ( ( ( pCellExtrapolatedFaceE.x - pCellExtrapolatedFaceE.y ) - ( pCellExtrapolatedFaceW.x - pCellExtrapolatedFaceW.y ) ) / DOMAIN_DELTAX );
+	dSourceTerms.z = -1 * GRAVITY * ( (pCellExtrapolatedFaceN.x + pCellExtrapolatedFaceS.x) / 2 ) * ( ( ( pCellExtrapolatedFaceN.x - pCellExtrapolatedFaceN.y ) - ( pCellExtrapolatedFaceS.x - pCellExtrapolatedFaceS.y ) ) / DOMAIN_DELTAY );
+
+	// Calculation of the change values per timestep and spatial dimension
+	dDeltaValues.x	= ( pFluxE.x  - pFluxW.x  )/DOMAIN_DELTAX + 
+					  ( pFluxN.x  - pFluxS.x  )/DOMAIN_DELTAY - 
+					  dSourceTerms.x;
+	dDeltaValues.z	= ( pFluxE.y - pFluxW.y )/DOMAIN_DELTAX + 
+					  ( pFluxN.y - pFluxS.y )/DOMAIN_DELTAY - 
+					  dSourceTerms.y;
+	dDeltaValues.w	= ( pFluxE.z - pFluxW.z )/DOMAIN_DELTAX + 
+					  ( pFluxN.z - pFluxS.z )/DOMAIN_DELTAY - 
+					  dSourceTerms.z;
+
+	// Round delta values to zero if small
+	if ( ( dDeltaValues.x > 0.0 && dDeltaValues.x <  VERY_SMALL ) ||
+		 ( dDeltaValues.x < 0.0 && dDeltaValues.x > -VERY_SMALL ) ) 
+		 dDeltaValues.x = 0.0;
+	if ( ( dDeltaValues.z > 0.0 && dDeltaValues.z <  VERY_SMALL ) ||
+		 ( dDeltaValues.z < 0.0 && dDeltaValues.z > -VERY_SMALL ) ) 
+		 dDeltaValues.z = 0.0;
+	if ( ( dDeltaValues.w > 0.0 && dDeltaValues.w <  VERY_SMALL ) ||
+		 ( dDeltaValues.w < 0.0 && dDeltaValues.w > -VERY_SMALL ) ) 
+		 dDeltaValues.w = 0.0;
+
+	// Application of the change values
+	// TODO: This can be rewritten as a single vector operation acting on xzw
+	pCell.x		= pCell.x	- 0.5 * dTimestep * dDeltaValues.x;
+	pCell.z		= pCell.z	- 0.5 * dTimestep * dDeltaValues.z;
+	pCell.w		= pCell.w	- 0.5 * dTimestep * dDeltaValues.w;
+
+	// Commit to global memory
+	return pCell;
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+/*
+ *  Calculate everything for the second step of calculation
+ */
+__kernel REQD_WG_SIZE_FULL_TS
+void mch_2nd_cacheNone ( 
+			__constant	cl_double *  				dTimestep,				// Timestep
+			__global	cl_double4 *  			pCellState,				// Current cell state data
+			__global	cl_double const * restrict	dBedElevation,			// Bed elevation
+			__global	cl_double const * restrict	dManning,				// Manning values
+			#ifdef MEM_SEPARATE_FACES
+			__global	cl_double4 *  			pCellExtrapolatedN,		// Target extrapolated data
+			__global	cl_double4 *  			pCellExtrapolatedE,		// Target extrapolated data
+			__global	cl_double4 *  			pCellExtrapolatedS,		// Target extrapolated data
+			__global	cl_double4 *  			pCellExtrapolatedW		// Target extrapolated data
+			#endif
+			#ifdef MEM_CONTIGUOUS_FACES
+			__global	sFaceStructure *  		pCellExtrapolated		// Target extrapolated data
+			#endif
+		)
+{
+
+	// Identify the cell we're reconstructing
+	__private const cl_double			dLclTimestep	= *dTimestep;
+	__private cl_long					lIdxX			= get_global_id(0);
+	__private cl_long					lIdxY			= get_global_id(1);
+
+	__private cl_uchar		ucStop = 0;
+	__private cl_uchar		ucDirection;
+	__private cl_uchar		ucDryCount = 0;
+	__private cl_ulong		ulIdx;
+	__private cl_double		dManningCoef;
+	__private cl_double4	pSourceTerms,			dDeltaValues;					// Z, Qx, Qy
+	__private cl_double		dCellBedElev,			dNeigBedElev[4];				// Zb
+	__private cl_double4	pCellData,				pNeigData[4];					// Z, Zmax, Qx, Qy
+	__private cl_double4	pExtrapolationIntnl[4], pExtrapolationExtnl[4];			// Z, H, Qx, Qy
+	__private cl_double4	pFlux[4];												// Z, Qx, Qy
+	__private cl_double8	pLeft,					pRight;							// Z, H, Qx, Qy, U, V, Zb
+
+	// Don't bother if we've gone beyond the domain bounds
+	if ( lIdxX >= DOMAIN_COLS - 2 || 
+		 lIdxY >= DOMAIN_ROWS - 2 || 
+		 lIdxX <= 1 || 
+		 lIdxY <= 1 ) 
+		return;
+
+	// Also don't bother if we've gone beyond the total simulation time
+	if ( dLclTimestep <= 0.0 )
+		return;
+
+	// Z, H, Qx, Qy
+	// Commit to global memory
+	#ifdef MEM_SEPARATE_FACES
+		__global cl_double4*	pCellExtrapolatedIntnl[4] = { pCellExtrapolatedN, pCellExtrapolatedE, pCellExtrapolatedS, pCellExtrapolatedW };
+		__global cl_double4*	pCellExtrapolatedExtnl[4] = { pCellExtrapolatedS, pCellExtrapolatedW, pCellExtrapolatedN, pCellExtrapolatedE };
+	#endif
+
+	// Load current cell data
+	ulIdx = getCellID(lIdxX, lIdxY);
+	pCellData			= pCellState[ ulIdx ];
+	dCellBedElev		= dBedElevation[ ulIdx ];
+	dManningCoef		= dManning[ ulIdx ];
+
+	// Cell disabled?
+	if ( pCellData.y <= -9999.0 || pCellData.x == -9999.0 )
+		return;
+
+	if ( pCellData.x - dCellBedElev < VERY_SMALL )
+		++ucDryCount;
+
+	// Load neighbour and interface data
+	for( ucDirection = 0; ucDirection < 4; ++ucDirection )
+	{
+		__private cl_ulong ulIdxNeig;
+		ulIdxNeig = getNeighbourByIndices(lIdxX, lIdxY, ucDirection);
+
+		pNeigData[ucDirection]				= pCellState[ ulIdxNeig ];
+		dNeigBedElev[ucDirection]			= dBedElevation[ ulIdxNeig ];
+		#ifdef MEM_SEPARATE_FACES
+			pExtrapolationIntnl[ucDirection]	= pCellExtrapolatedIntnl[ucDirection][ ulIdx ];
+			pExtrapolationExtnl[ucDirection]	= pCellExtrapolatedExtnl[ucDirection][ ulIdxNeig ];
+		#endif
+		#ifdef MEM_CONTIGUOUS_FACES
+			switch( ucDirection )
+			{
+			case DOMAIN_DIR_N:
+				pExtrapolationIntnl[ucDirection]	= pCellExtrapolated[ ulIdx ].pN;
+				pExtrapolationExtnl[ucDirection]	= pCellExtrapolated[ ulIdxNeig ].pS;			
+				break;
+			case DOMAIN_DIR_E:
+				pExtrapolationIntnl[ucDirection]	= pCellExtrapolated[ ulIdx ].pE;
+				pExtrapolationExtnl[ucDirection]	= pCellExtrapolated[ ulIdxNeig ].pW;			
+				break;
+			case DOMAIN_DIR_S:
+				pExtrapolationIntnl[ucDirection]	= pCellExtrapolated[ ulIdx ].pS;
+				pExtrapolationExtnl[ucDirection]	= pCellExtrapolated[ ulIdxNeig ].pN;			
+				break;
+			case DOMAIN_DIR_W:
+				pExtrapolationIntnl[ucDirection]	= pCellExtrapolated[ ulIdx ].pW;
+				pExtrapolationExtnl[ucDirection]	= pCellExtrapolated[ ulIdxNeig ].pE;			
+				break;
+			}
+		#endif
+
+		if ( pNeigData[ucDirection].y < VERY_SMALL )
+			++ucDryCount;
+	}
+
+	// All neighbours are dry? Don't bother calculating
+	if ( ucDryCount >= 5 ) return;
+
+	// Reconstruct interfaces
+	// -> North
+	ucStop += reconstructInterface(
+		pCellData,							// Left cell data
+		dCellBedElev,						// Left bed elevation
+		pNeigData[DOMAIN_DIR_N],			// Right cell data
+		dNeigBedElev[DOMAIN_DIR_N],			// Right bed elevation
+		pExtrapolationIntnl[DOMAIN_DIR_N],	// Left estimated face data
+		pExtrapolationExtnl[DOMAIN_DIR_N],	// Right estimated face data
+		&pLeft,								// Output for left
+		&pRight,							// Output for right
+		DOMAIN_DIR_N
+	);
+	pNeigData[DOMAIN_DIR_N].x  = pRight.S0;
+	pNeigData[DOMAIN_DIR_N].y  = pRight.S6;
+	pFlux[DOMAIN_DIR_N] = riemannSolver( DOMAIN_DIR_N, pLeft, pRight, false );
+
+	// -> East
+	ucStop += reconstructInterface(
+		pCellData,							// Left cell data
+		dCellBedElev,						// Left bed elevation
+		pNeigData[DOMAIN_DIR_E],			// Right cell data
+		dNeigBedElev[DOMAIN_DIR_E],			// Right bed elevation
+		pExtrapolationIntnl[DOMAIN_DIR_E],	// Left estimated face data
+		pExtrapolationExtnl[DOMAIN_DIR_E],	// Right estimated face data
+		&pLeft,								// Output for left
+		&pRight,							// Output for right
+		DOMAIN_DIR_E
+	);
+	pNeigData[DOMAIN_DIR_E].x = pRight.S0;
+	pNeigData[DOMAIN_DIR_E].y = pRight.S6;
+	pFlux[DOMAIN_DIR_E] = riemannSolver( DOMAIN_DIR_E, pLeft, pRight, false ); 
+
+	// -> South
+	ucStop += reconstructInterface(
+		pNeigData[DOMAIN_DIR_S],			// Left cell data
+		dNeigBedElev[DOMAIN_DIR_S],			// Left bed elevation
+		pCellData,							// Right cell data
+		dCellBedElev,						// Right bed elevation
+		pExtrapolationExtnl[DOMAIN_DIR_S],	// Left estimated face data
+		pExtrapolationIntnl[DOMAIN_DIR_S],	// Right estimated face data
+		&pLeft,								// Output for left
+		&pRight,							// Output for right
+		DOMAIN_DIR_S
+	);
+	pNeigData[DOMAIN_DIR_S].x = pLeft.S0;
+	pNeigData[DOMAIN_DIR_S].y = pLeft.S6;
+	pFlux[DOMAIN_DIR_S] = riemannSolver( DOMAIN_DIR_S, pLeft, pRight, false );
+
+	// -> West
+	ucStop += reconstructInterface(
+		pNeigData[DOMAIN_DIR_W],			// Left cell data
+		dNeigBedElev[DOMAIN_DIR_W],			// Left bed elevation
+		pCellData,							// Right cell data
+		dCellBedElev,						// Right bed elevation
+		pExtrapolationExtnl[DOMAIN_DIR_W],	// Left estimated face data
+		pExtrapolationIntnl[DOMAIN_DIR_W],	// Right estimated face data
+		&pLeft,								// Output for left
+		&pRight,							// Output for right
+		DOMAIN_DIR_W
+	);
+	pNeigData[DOMAIN_DIR_W].x = pLeft.S0;
+	pNeigData[DOMAIN_DIR_W].y = pLeft.S6;
+	pFlux[DOMAIN_DIR_W] = riemannSolver( DOMAIN_DIR_W, pLeft, pRight, false );
+
+	// Source term vector
+	// TODO: Somehow get these sorted too...
+	pSourceTerms.x = 0.0;
+	pSourceTerms.y = -1 * GRAVITY * ( ( pNeigData[DOMAIN_DIR_E].x + pNeigData[DOMAIN_DIR_W].x ) / 2 ) * ( ( pNeigData[DOMAIN_DIR_E].y - pNeigData[DOMAIN_DIR_W].y ) / DOMAIN_DELTAX );
+	pSourceTerms.z = -1 * GRAVITY * ( ( pNeigData[DOMAIN_DIR_N].x + pNeigData[DOMAIN_DIR_S].x ) / 2 ) * ( ( pNeigData[DOMAIN_DIR_N].y - pNeigData[DOMAIN_DIR_S].y ) / DOMAIN_DELTAY );
+
+	// Calculation of change values per timestep and spatial dimension
+	dDeltaValues.x	= ( pFlux[1].x  - pFlux[3].x  )/DOMAIN_DELTAX + 
+					  ( pFlux[0].x  - pFlux[2].x  )/DOMAIN_DELTAY - 
+					  pSourceTerms.x;
+	dDeltaValues.z	= ( pFlux[1].y - pFlux[3].y )/DOMAIN_DELTAX + 
+					  ( pFlux[0].y - pFlux[2].y )/DOMAIN_DELTAY - 
+					  pSourceTerms.y;
+	dDeltaValues.w	= ( pFlux[1].z - pFlux[3].z )/DOMAIN_DELTAX + 
+					  ( pFlux[0].z - pFlux[2].z )/DOMAIN_DELTAY - 
+					  pSourceTerms.z;
+
+	// Round delta values to zero if small
+	if ( ( dDeltaValues.x > 0.0 && dDeltaValues.x <  VERY_SMALL ) ||
+		 ( dDeltaValues.x < 0.0 && dDeltaValues.x > -VERY_SMALL ) ) 
+		 dDeltaValues.x = 0.0;
+	if ( ( dDeltaValues.z > 0.0 && dDeltaValues.z <  VERY_SMALL ) ||
+		 ( dDeltaValues.z < 0.0 && dDeltaValues.z > -VERY_SMALL ) ) 
+		 dDeltaValues.z = 0.0;
+	if ( ( dDeltaValues.w > 0.0 && dDeltaValues.w <  VERY_SMALL ) ||
+		 ( dDeltaValues.w < 0.0 && dDeltaValues.w > -VERY_SMALL ) ) 
+		 dDeltaValues.w = 0.0;
+
+	// Stopping conditions
+	if ( ucStop > 0 )
+	{
+		pCellData.w = 0.0;
+		pCellData.z = 0.0;
+	}
+
+	// Update the flow state
+	// TODO: This can be rewritten as a single vector operation acting on xzw
+	//pCellData.xzw	= pCellData.xzw	- dLclTimestep * dDeltaValues.xzw;
+	pCellData.x		= pCellData.x	- dLclTimestep * dDeltaValues.x;
+	pCellData.z		= pCellData.z	- dLclTimestep * dDeltaValues.z;
+	pCellData.w		= pCellData.w	- dLclTimestep * dDeltaValues.w;
+
+	// TEMP error check
+	// Debug info
+	#ifdef DEBUG_OUTPUT
+	if ( lIdxX == DEBUG_CELLX && lIdxY == DEBUG_CELLY )
+	{
+		printf( "Stop binary:   ( %i )\n", ucStop );
+		printf( "Flux N:        { %f, %f, %f )\n", pFlux[0].x, pFlux[0].y, pFlux[0].z );
+		printf( "Flux E:        { %f, %f, %f )\n", pFlux[1].x, pFlux[1].y, pFlux[1].z );
+		printf( "Flux S:        { %f, %f, %f )\n", pFlux[2].x, pFlux[2].y, pFlux[2].z );
+		printf( "Flux W:        { %f, %f, %f )\n", pFlux[3].x, pFlux[3].y, pFlux[3].z );
+		printf( "Data Left N(1):{ %f, %f, %f, %f, \n", pLeft[0].S0, pLeft[0].S1, pLeft[0].S2, pLeft[0].S3 );
+		printf( "Data Left N(2):  %f, %f, %f, %f }\n", pLeft[0].S4, pLeft[0].S5, pLeft[0].S6, pLeft[0].S7 );
+		printf( "Data Righ N(1):{ %f, %f, %f, %f, \n", pRight[0].S0, pRight[0].S1, pRight[0].S2, pRight[0].S3 );
+		printf( "Data Righ N(2):  %f, %f, %f, %f }\n", pRight[0].S4, pRight[0].S5, pRight[0].S6, pRight[0].S7 );
+		printf( "Data Left E(1):{ %f, %f, %f, %f, \n", pLeft[1].S0, pLeft[1].S1, pLeft[1].S2, pLeft[1].S3 );
+		printf( "Data Left E(2):  %f, %f, %f, %f }\n", pLeft[1].S4, pLeft[1].S5, pLeft[1].S6, pLeft[1].S7 );
+		printf( "Data Righ E(1):{ %f, %f, %f, %f, \n", pRight[1].S0, pRight[1].S1, pRight[1].S2, pRight[1].S3 );
+		printf( "Data Righ E(2):  %f, %f, %f, %f }\n", pRight[1].S4, pRight[1].S5, pRight[1].S6, pRight[1].S7 );
+		printf( "Data Left S(1):{ %f, %f, %f, %f, \n", pLeft[2].S0, pLeft[2].S1, pLeft[2].S2, pLeft[2].S3 );
+		printf( "Data Left S(2):  %f, %f, %f, %f }\n", pLeft[2].S4, pLeft[2].S5, pLeft[2].S6, pLeft[2].S7 );
+		printf( "Data Righ S(1):{ %f, %f, %f, %f, \n", pRight[2].S0, pRight[2].S1, pRight[2].S2, pRight[2].S3 );
+		printf( "Data Righ S(2):  %f, %f, %f, %f }\n", pRight[2].S4, pRight[2].S5, pRight[2].S6, pRight[2].S7 );
+		printf( "Data Left W(1):{ %f, %f, %f, %f, \n", pLeft[3].S0, pLeft[3].S1, pLeft[3].S2, pLeft[3].S3 );
+		printf( "Data Left W(2):  %f, %f, %f, %f }\n", pLeft[3].S4, pLeft[3].S5, pLeft[3].S6, pLeft[3].S7 );
+		printf( "Data Righ W(1):{ %f, %f, %f, %f, \n", pRight[3].S0, pRight[3].S1, pRight[3].S2, pRight[3].S3 );
+		printf( "Data Righ W(2):  %f, %f, %f, %f }\n", pRight[3].S4, pRight[3].S5, pRight[3].S6, pRight[3].S7 );
+		printf( "Source terms:  { %f, %f, %f)\n", pSourceTerms.x, pSourceTerms.y, pSourceTerms.z );
+		printf( "Delta values:  { %f, %f, %f )\n", dDeltaValues.x, dDeltaValues.z, dDeltaValues.w );
+		printf( "New data:      { %f, %f, %f, %f )\n", pCellData.x, pCellData.y, pCellData.z, pCellData.w );
+	}
+	#endif
+
+	#ifdef FRICTION_ENABLED
+	#ifdef FRICTION_IN_FLUX_KERNEL
+	// Calculate the friction effects
+	pCellData = implicitFriction(
+		pCellData,
+		dCellBedElev,
+		dManningCoef,
+		dLclTimestep
+	);
+	#endif
+	#endif
+
+	// Crazy low depths?
+	if (pCellData.x - dCellBedElev < VERY_SMALL)
+		pCellData.x = dCellBedElev;
+
+	// New max FSL?
+	if ( pCellData.x > pCellData.y && pCellData.y > -9990.0 )
+		pCellData.y = pCellData.x;
+
+	// Commit to global memory
+	pCellState[ ulIdx ] = pCellData;
+}
+
+
+/*
+ *  Calculate both the predictor and the full evolution stages all in one go
+ *  Uses local caching for cell data
+ */
+__kernel REQD_WG_SIZE_FULL_TS
+void mch_cacheMaximum ( 
+			__constant	cl_double *  				dTimestep,						// Timestep
+			__global	cl_double4 *  			pCellState,						// Current cell state data
+			__global	cl_double const * restrict	dBedElevation,					// Bed elevation
+			__global	cl_double const * restrict	dManning						// Manning values
+		)
+{
+	// Oversized in one dimension to avoid bank conflicts. Needs further research.
+	__local		cl_double4				lpCellState[ MCH_STG1_DIM1 ][ MCH_STG1_DIM2 ];			// Current cell state data (cache)
+
+	// Identify the cell we're reconstructing and handle the overlapping workgroups
+	__private cl_long					lIdxX			= get_global_id(0) - get_group_id(0) * 4;
+	__private cl_long					lIdxY			= get_global_id(1) - get_group_id(1) * 4;
+	__private cl_long					lLocalX			= get_local_id(0);
+	__private cl_long					lLocalY			= get_local_id(1);
+	__private cl_ulong					lLocalSizeX		= get_local_size(0);
+	__private cl_ulong					lLocalSizeY		= get_local_size(1);
+	__private cl_ulong					ulIdx;
+	__private cl_double4				pCellData;
+	__private cl_double					dCellBedElev;
+	__private cl_double					dManningCoef;
+	
+	if ( lIdxX <= DOMAIN_COLS - 1 &&
+		 lIdxY <= DOMAIN_ROWS - 1 && 
+		 lIdxX >= 0 &&
+		 lIdxY >= 0 )
+	{
+		// Populate cache data
+		ulIdx = getCellID(lIdxX, lIdxY);
+
+		// The max FSL is substituted with the bed elevation, thereby reducing LDS consumption
+		pCellData								= pCellState[ ulIdx ];
+		dCellBedElev							= dBedElevation[ ulIdx ];
+		dManningCoef							= dManning[ ulIdx ];
+		lpCellState[ lLocalX ][ lLocalY ]		= (cl_double4)( pCellData.x, dCellBedElev, pCellData.z, pCellData.w );
+	}
+
+	//mem_fence(CLK_LOCAL_MEM_FENCE);
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+	// Don't bother if we've gone beyond the domain bounds
+	if ( lIdxX >= DOMAIN_COLS - 2 || 
+		 lIdxY >= DOMAIN_ROWS - 2 || 
+		 lIdxX <= 1 || 
+		 lIdxY <= 1 ||
+		 lLocalX >= lLocalSizeX - 2 ||
+		 lLocalY >= lLocalSizeY - 2 ||
+		 lLocalX <= 1 ||
+		 lLocalY <= 1 ) 
+		return;
+
+	// Cell disabled?
+	if ( pCellData.y <= -9999.0 || pCellData.x == -9999.0 )
+	{
+		return;
+	}
+
+	__private cl_double		dLclTimestep	= *dTimestep;
+	__private cl_double4	pNeigDataC,pNeigDataN,pNeigDataE,pNeigDataS,pNeigDataW;					// Z, Zb, Qx, Qy
+	__private cl_double4	pExtrapolationN,pExtrapolationE,pExtrapolationS,pExtrapolationW;		// Z, H, Qx, Qy
+	__private cl_double4	pExtrapolationIntnl[4], pExtrapolationExtnl[4];							// Z, H, Qx, Qy
+	__private cl_double4	pSourceTerms,			dDeltaValues;									// Z, Qx, Qy
+	__private cl_double4	pFlux[4];																// Z, Qx, Qy
+	__private cl_double8	pLeft,				pRight;											// Z, H, Qx, Qy, U, V, Zb
+	__private cl_uchar		ucStop			= 0;
+	__private cl_uchar		ucDryCount		= 0;
+
+	// Also don't bother if we've gone beyond the total simulation time
+	if ( dLclTimestep <= 0.0 )
+		return;
+
+	// ---
+	// First-stage of the calculation
+	// ---
+
+	// Calculate slopes and half-evolved states for all of the four neighbouring cells
+	// -> North
+	pNeigDataC		= lpCellState	[ lLocalX     ][ lLocalY + 1 ];
+	pNeigDataW		= lpCellState	[ lLocalX - 1 ][ lLocalY + 1 ];
+	pNeigDataS		= lpCellState	[ lLocalX     ][ lLocalY     ];
+	pNeigDataN		= lpCellState	[ lLocalX     ][ lLocalY + 2 ];
+	pNeigDataE		= lpCellState	[ lLocalX + 1 ][ lLocalY + 1 ];
+	mch_1st( dLclTimestep, pNeigDataC, pNeigDataN, pNeigDataE, pNeigDataS, pNeigDataW,
+			 pNeigDataC.y, pNeigDataN.y, pNeigDataE.y, pNeigDataS.y, pNeigDataW.y,
+			 &pExtrapolationN, &pExtrapolationE, &pExtrapolationS, &pExtrapolationW );
+	pExtrapolationExtnl[ DOMAIN_DIR_N ] = pExtrapolationS;
+
+	// -> West
+	pNeigDataC		= lpCellState	[ lLocalX - 1 ][ lLocalY     ];
+	pNeigDataW		= lpCellState	[ lLocalX - 2 ][ lLocalY     ];
+	pNeigDataS		= lpCellState	[ lLocalX - 1 ][ lLocalY - 1 ];
+	pNeigDataN		= lpCellState	[ lLocalX - 1 ][ lLocalY + 1 ];
+	pNeigDataE		= lpCellState	[ lLocalX     ][ lLocalY     ];
+	mch_1st( dLclTimestep, pNeigDataC, pNeigDataN, pNeigDataE, pNeigDataS, pNeigDataW,
+			 pNeigDataC.y, pNeigDataN.y, pNeigDataE.y, pNeigDataS.y, pNeigDataW.y,
+			 &pExtrapolationN, &pExtrapolationE, &pExtrapolationS, &pExtrapolationW );
+	pExtrapolationExtnl[ DOMAIN_DIR_W ] = pExtrapolationE;
+
+	// -> Center
+	pNeigDataC		= lpCellState	[ lLocalX     ][ lLocalY     ];
+	pNeigDataW		= lpCellState	[ lLocalX - 1 ][ lLocalY     ];
+	pNeigDataS		= lpCellState	[ lLocalX     ][ lLocalY - 1 ];
+	pNeigDataN		= lpCellState	[ lLocalX     ][ lLocalY + 1 ];
+	pNeigDataE		= lpCellState	[ lLocalX + 1 ][ lLocalY     ];
+	if ( pNeigDataC.x - pNeigDataC.y < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataN.x - pNeigDataN.y < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataE.x - pNeigDataE.y < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataS.x - pNeigDataS.y < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataW.x - pNeigDataW.y < VERY_SMALL ) ucDryCount++;
+	mch_1st( dLclTimestep, pNeigDataC, pNeigDataN, pNeigDataE, pNeigDataS, pNeigDataW,
+			 pNeigDataC.y, pNeigDataN.y, pNeigDataE.y, pNeigDataS.y, pNeigDataW.y,
+			 &pExtrapolationN, &pExtrapolationE, &pExtrapolationS, &pExtrapolationW );
+	pExtrapolationIntnl[ DOMAIN_DIR_N ]  = pExtrapolationN;
+	pExtrapolationIntnl[ DOMAIN_DIR_E ]  = pExtrapolationE;
+	pExtrapolationIntnl[ DOMAIN_DIR_S ]  = pExtrapolationS;
+	pExtrapolationIntnl[ DOMAIN_DIR_W ]  = pExtrapolationW;
+
+	// -> East
+	pNeigDataC		= lpCellState	[ lLocalX + 1 ][ lLocalY     ];
+	pNeigDataW		= lpCellState	[ lLocalX     ][ lLocalY     ];
+	pNeigDataS		= lpCellState	[ lLocalX + 1 ][ lLocalY - 1 ];
+	pNeigDataN		= lpCellState	[ lLocalX + 1 ][ lLocalY + 1 ];
+	pNeigDataE		= lpCellState	[ lLocalX + 2 ][ lLocalY     ];
+	mch_1st( dLclTimestep, pNeigDataC, pNeigDataN, pNeigDataE, pNeigDataS, pNeigDataW,
+			 pNeigDataC.y, pNeigDataN.y, pNeigDataE.y, pNeigDataS.y, pNeigDataW.y,
+			 &pExtrapolationN, &pExtrapolationE, &pExtrapolationS, &pExtrapolationW );
+	pExtrapolationExtnl[ DOMAIN_DIR_E ] = pExtrapolationW;
+
+	// -> South
+	pNeigDataC		= lpCellState	[ lLocalX     ][ lLocalY - 1 ];
+	pNeigDataW		= lpCellState	[ lLocalX - 1 ][ lLocalY - 1 ];
+	pNeigDataS		= lpCellState	[ lLocalX     ][ lLocalY - 2 ];
+	pNeigDataN		= lpCellState	[ lLocalX     ][ lLocalY     ];
+	pNeigDataE		= lpCellState	[ lLocalX + 1 ][ lLocalY - 1 ];
+	mch_1st( dLclTimestep, pNeigDataC, pNeigDataN, pNeigDataE, pNeigDataS, pNeigDataW,
+			 pNeigDataC.y, pNeigDataN.y, pNeigDataE.y, pNeigDataS.y, pNeigDataW.y,
+			 &pExtrapolationN, &pExtrapolationE, &pExtrapolationS, &pExtrapolationW );
+	pExtrapolationExtnl[ DOMAIN_DIR_S ] = pExtrapolationN;
+
+	// ---
+	// Second-stage of the calculation
+	// ---
+
+	// All neighbours are dry? Don't bother calculating
+	if ( ucDryCount >= 5 ) return;
+
+	// Reconstruct interfaces
+	// -> North
+	ucStop += reconstructInterface(
+		pCellData,							// Left cell data
+		dCellBedElev,						// Left bed elevation
+		pNeigDataN,							// Right cell data
+		pNeigDataN.y,						// Right bed elevation
+		pExtrapolationIntnl[DOMAIN_DIR_N],	// Left estimated face data
+		pExtrapolationExtnl[DOMAIN_DIR_N],	// Right estimated face data
+		&pLeft,				// Output for left
+		&pRight,				// Output for right
+		DOMAIN_DIR_N
+	);
+	pNeigDataN.x = pLeft.S0;
+	pNeigDataN.y = pLeft.S6;
+	pFlux[DOMAIN_DIR_N] = riemannSolver( DOMAIN_DIR_N, pLeft, pRight, false );
+
+	// -> East
+	ucStop += reconstructInterface(
+		pCellData,							// Left cell data
+		dCellBedElev,						// Left bed elevation
+		pNeigDataE,							// Right cell data
+		pNeigDataE.y,						// Right bed elevation
+		pExtrapolationIntnl[DOMAIN_DIR_E],	// Left estimated face data
+		pExtrapolationExtnl[DOMAIN_DIR_E],	// Right estimated face data
+		&pLeft,								// Output for left
+		&pRight,							// Output for right
+		DOMAIN_DIR_E
+	);
+	pNeigDataE.x = pLeft.S0;
+	pNeigDataE.y = pLeft.S6;
+	pFlux[DOMAIN_DIR_E] = riemannSolver( DOMAIN_DIR_E, pLeft, pRight, false ); 
+
+	// -> South
+	ucStop += reconstructInterface(
+		pNeigDataS,							// Left cell data
+		pNeigDataS.y,						// Left bed elevation
+		pCellData,							// Right cell data
+		dCellBedElev,						// Right bed elevation
+		pExtrapolationExtnl[DOMAIN_DIR_S],	// Left estimated face data
+		pExtrapolationIntnl[DOMAIN_DIR_S],	// Right estimated face data
+		&pLeft,								// Output for left
+		&pRight,							// Output for right
+		DOMAIN_DIR_S
+	);
+	pNeigDataS.x = pRight.S0;
+	pNeigDataS.y = pRight.S6;
+	pFlux[DOMAIN_DIR_S] = riemannSolver( DOMAIN_DIR_S, pLeft, pRight, false );
+
+	// -> West
+	ucStop += reconstructInterface(
+		pNeigDataW,							// Left cell data
+		pNeigDataW.y,						// Left bed elevation
+		pCellData,							// Right cell data
+		dCellBedElev,						// Right bed elevation
+		pExtrapolationExtnl[DOMAIN_DIR_W],	// Left estimated face data
+		pExtrapolationIntnl[DOMAIN_DIR_W],	// Right estimated face data
+		&pLeft,								// Output for left
+		&pRight,							// Output for right
+		DOMAIN_DIR_W
+	);
+	pNeigDataW.x = pRight.S0;
+	pNeigDataW.y = pRight.S6;
+	pFlux[DOMAIN_DIR_W] = riemannSolver( DOMAIN_DIR_W, pLeft, pRight, false );
+
+	// Source term vector
+	// TODO: Somehow get these sorted too...
+	pSourceTerms.x = 0.0;
+	pSourceTerms.y = -1 * GRAVITY * ( ( pNeigDataE.x + pNeigDataW.x ) / 2 ) * ( ( pNeigDataE.y - pNeigDataW.y ) / DOMAIN_DELTAX );
+	pSourceTerms.z = -1 * GRAVITY * ( ( pNeigDataN.x + pNeigDataS.x ) / 2 ) * ( ( pNeigDataN.y - pNeigDataS.y ) / DOMAIN_DELTAY );
+
+	// Calculation of change values per timestep and spatial dimension
+	dDeltaValues.x	= ( pFlux[1].x  - pFlux[3].x  )/DOMAIN_DELTAX + 
+					  ( pFlux[0].x  - pFlux[2].x  )/DOMAIN_DELTAY - 
+					  pSourceTerms.x;
+	dDeltaValues.z	= ( pFlux[1].y - pFlux[3].y )/DOMAIN_DELTAX + 
+					  ( pFlux[0].y - pFlux[2].y )/DOMAIN_DELTAY - 
+					  pSourceTerms.y;
+	dDeltaValues.w	= ( pFlux[1].z - pFlux[3].z )/DOMAIN_DELTAX + 
+					  ( pFlux[0].z - pFlux[2].z )/DOMAIN_DELTAY - 
+					  pSourceTerms.z;
+
+	// Round delta values to zero if small
+	// TODO: Explore whether this can be rewritten as some form of clamp operation?
+	if ( ( dDeltaValues.x > 0.0 && dDeltaValues.x <  VERY_SMALL ) ||
+		 ( dDeltaValues.x < 0.0 && dDeltaValues.x > -VERY_SMALL ) ) 
+		 dDeltaValues.x = 0.0;
+	if ( ( dDeltaValues.z > 0.0 && dDeltaValues.z <  VERY_SMALL ) ||
+		 ( dDeltaValues.z < 0.0 && dDeltaValues.z > -VERY_SMALL ) ) 
+		 dDeltaValues.z = 0.0;
+	if ( ( dDeltaValues.w > 0.0 && dDeltaValues.w <  VERY_SMALL ) ||
+		 ( dDeltaValues.w < 0.0 && dDeltaValues.w > -VERY_SMALL ) ) 
+		 dDeltaValues.w = 0.0;
+
+	// Stopping conditions
+	if ( ucStop > 0 )
+	{
+		pCellData.z = 0.0;
+		pCellData.w = 0.0;
+	}
+
+	// Update the flow state
+	pCellData.x		= pCellData.x	- dLclTimestep * dDeltaValues.x;
+	pCellData.z		= pCellData.z	- dLclTimestep * dDeltaValues.z;
+	pCellData.w		= pCellData.w	- dLclTimestep * dDeltaValues.w;
+
+	// Debug info
+	#ifdef DEBUG_OUTPUT
+	if ( lIdxX == DEBUG_CELLX && lIdxY == DEBUG_CELLY )
+	{
+		printf( "Stop binary:   ( %i )\n", ucStop );
+		printf( "Flux N:        { %f, %f, %f )\n", pFlux[0].x, pFlux[0].y, pFlux[0].z );
+		printf( "Flux E:        { %f, %f, %f )\n", pFlux[1].x, pFlux[1].y, pFlux[1].z );
+		printf( "Flux S:        { %f, %f, %f )\n", pFlux[2].x, pFlux[2].y, pFlux[2].z );
+		printf( "Flux W:        { %f, %f, %f )\n", pFlux[3].x, pFlux[3].y, pFlux[3].z );
+		printf( "Data Left N(1):{ %f, %f, %f, %f, \n", pLeft[0].S0, pLeft[0].S1, pLeft[0].S2, pLeft[0].S3 );
+		printf( "Data Left N(2):  %f, %f, %f, %f }\n", pLeft[0].S4, pLeft[0].S5, pLeft[0].S6, pLeft[0].S7 );
+		printf( "Data Righ N(1):{ %f, %f, %f, %f, \n", pRight[0].S0, pRight[0].S1, pRight[0].S2, pRight[0].S3 );
+		printf( "Data Righ N(2):  %f, %f, %f, %f }\n", pRight[0].S4, pRight[0].S5, pRight[0].S6, pRight[0].S7 );
+		printf( "Data Left E(1):{ %f, %f, %f, %f, \n", pLeft[1].S0, pLeft[1].S1, pLeft[1].S2, pLeft[1].S3 );
+		printf( "Data Left E(2):  %f, %f, %f, %f }\n", pLeft[1].S4, pLeft[1].S5, pLeft[1].S6, pLeft[1].S7 );
+		printf( "Data Righ E(1):{ %f, %f, %f, %f, \n", pRight[1].S0, pRight[1].S1, pRight[1].S2, pRight[1].S3 );
+		printf( "Data Righ E(2):  %f, %f, %f, %f }\n", pRight[1].S4, pRight[1].S5, pRight[1].S6, pRight[1].S7 );
+		printf( "Data Left S(1):{ %f, %f, %f, %f, \n", pLeft[2].S0, pLeft[2].S1, pLeft[2].S2, pLeft[2].S3 );
+		printf( "Data Left S(2):  %f, %f, %f, %f }\n", pLeft[2].S4, pLeft[2].S5, pLeft[2].S6, pLeft[2].S7 );
+		printf( "Data Righ S(1):{ %f, %f, %f, %f, \n", pRight[2].S0, pRight[2].S1, pRight[2].S2, pRight[2].S3 );
+		printf( "Data Righ S(2):  %f, %f, %f, %f }\n", pRight[2].S4, pRight[2].S5, pRight[2].S6, pRight[2].S7 );
+		printf( "Data Left W(1):{ %f, %f, %f, %f, \n", pLeft[3].S0, pLeft[3].S1, pLeft[3].S2, pLeft[3].S3 );
+		printf( "Data Left W(2):  %f, %f, %f, %f }\n", pLeft[3].S4, pLeft[3].S5, pLeft[3].S6, pLeft[3].S7 );
+		printf( "Data Righ W(1):{ %f, %f, %f, %f, \n", pRight[3].S0, pRight[3].S1, pRight[3].S2, pRight[3].S3 );
+		printf( "Data Righ W(2):  %f, %f, %f, %f }\n", pRight[3].S4, pRight[3].S5, pRight[3].S6, pRight[3].S7 );
+		printf( "Source terms:  { %f, %f, %f)\n", pSourceTerms.x, pSourceTerms.y, pSourceTerms.z );
+		printf( "Delta values:  { %f, %f, %f )\n", dDeltaValues.x, dDeltaValues.z, dDeltaValues.w );
+		printf( "New data:      { %f, %f, %f, %f )\n", pCellData.x, pCellData.y, pCellData.z, pCellData.w );
+	}
+	#endif
+
+	#ifdef FRICTION_ENABLED
+	#ifdef FRICTION_IN_FLUX_KERNEL
+	// Calculate the friction effects
+	pCellData = implicitFriction(
+		pCellData,
+		dCellBedElev,
+		dManningCoef,
+		dLclTimestep
+	);
+	#endif
+	#endif
+
+	// Crazy low depths?
+	if ( pCellData.x - dCellBedElev < VERY_SMALL )
+		pCellData.x = dCellBedElev;
+
+	// New max FSL?
+	if ( pCellData.x > pCellData.y && pCellData.y > -9990.0 )
+		pCellData.y = pCellData.x;
+
+	// Commit to global memory
+	pCellState[ ulIdx ] = pCellData;
+}
+
+/*
+ *  Reconstruct the cell data in a non-negative way (depth positivity preserving)
+ */
+cl_uchar reconstructInterface(
+		cl_double4		pStateLeft,						// Left current state		Z, Zmax, Qx, Qy
+		cl_double		dBedLeft,						// Left bed elevation
+		cl_double4		pStateRight,					// Right current state
+		cl_double		dBedRight,						// Right bed elevation
+		cl_double4		pEstimateLeft,					// Left estimate data		Z, H, Qx, Qy
+		cl_double4		pEstimateRight,					// Right estimate data
+		cl_double8*		pOutputLeft,					// Output data for LHS of Riemann
+		cl_double8*		pOutputRight,					// Output data for RHS of Riemann
+		cl_uchar		ucDirection						// Direction under consideration
+	)
+{
+	cl_uchar		ucStop = 0;
+	cl_double8		pReconstructionLeft, pReconstructionRight;
+
+	// Initial values before reconstruction
+	pReconstructionLeft  = (cl_double8)
+						   ( pEstimateLeft.S0,																	// Z	S0
+						     pEstimateLeft.S1,																	// H	S1
+						     pEstimateLeft.S2,																	// Qx	S2
+						     pEstimateLeft.S3,																	// Qy	S3
+						     (pEstimateLeft.S1 <= VERY_SMALL ? 0.0 : pEstimateLeft.S2 / pEstimateLeft.S1 ),		// U	S4
+						     (pEstimateLeft.S1 <= VERY_SMALL ? 0.0 : pEstimateLeft.S3 / pEstimateLeft.S1 ),		// V	S5
+						     pEstimateLeft.S0 - pEstimateLeft.S1,												// Zb	S6
+						     0.0 );																				//		S7
+	pReconstructionRight = (cl_double8)
+						   ( pEstimateRight.S0,																	// Z	S0
+						     pEstimateRight.S1,																	// H	S1
+						     pEstimateRight.S2,																	// Qx	S2
+						     pEstimateRight.S3,																	// Qy	S3
+						     ( pEstimateRight.S1 <= VERY_SMALL ? 0.0 : pEstimateRight.S2 / pEstimateRight.S1 ),	// U	S4
+						     ( pEstimateRight.S1 <= VERY_SMALL ? 0.0 : pEstimateRight.S3 / pEstimateRight.S1 ),	// V	S5
+						     pEstimateRight.S0 - pEstimateRight.S1,												// Zb	S6
+						     0.0 );																				//		S7
+
+	// Maximum bed elevation and vertical shift factor
+	cl_double	dBedMaximum		= ( pReconstructionLeft.S6 > pReconstructionRight.S6 ? pReconstructionLeft.S6 : pReconstructionRight.S6 );
+	cl_double	dShiftV			= dBedMaximum - ( ucDirection < DOMAIN_DIR_S ? pEstimateLeft : pEstimateRight ).S0;
+	if ( dShiftV < 0.0 ) dShiftV = 0.0;
+
+	// Adjustment of depths and dependent elements
+	pReconstructionLeft.S1  = ( pEstimateLeft.S0  - dBedMaximum > 0.0 ? ( pEstimateLeft.S0  - dBedMaximum ) : 0.0 );
+	pReconstructionLeft.S0  = pReconstructionLeft.S1 + dBedMaximum;
+	pReconstructionLeft.S2  = pReconstructionLeft.S1 * pReconstructionLeft.S4;
+	pReconstructionLeft.S3  = pReconstructionLeft.S1 * pReconstructionLeft.S5;
+
+	pReconstructionRight.S1 = ( pEstimateRight.S0 - dBedMaximum > 0.0 ? ( pEstimateRight.S0 - dBedMaximum ) : 0.0 );
+	pReconstructionRight.S0 = pReconstructionRight.S1 + dBedMaximum;
+	pReconstructionRight.S2 = pReconstructionRight.S1 * pReconstructionRight.S4;
+	pReconstructionRight.S3 = pReconstructionRight.S1 * pReconstructionRight.S5;
+
+	// Prevent draining from a dry cell
+	// and the stopping conditions
+	switch (ucDirection)
+	{
+		case DOMAIN_DIR_N:
+
+			// NOTE: Do NOT include zero velocity in the check. Velocity must be non-negative for stopping conditions
+			//		 to be required.
+			if (pReconstructionLeft.S1 <= VERY_SMALL && pStateLeft.w > 0.0) { ucStop++; }
+			if (pReconstructionRight.S1 <= VERY_SMALL && pReconstructionLeft.S5 < 0.0)  { ucStop++; pReconstructionLeft.S5 = 0.0; }
+			if (pReconstructionLeft.S1 <= VERY_SMALL && pReconstructionRight.S5 > 0.0) { ucStop++; pReconstructionRight.S5 = 0.0; }
+
+			break;
+		case DOMAIN_DIR_S:
+
+			if (pReconstructionRight.S1 <= VERY_SMALL && pStateRight.w < 0.0) { ucStop++; }
+			if (pReconstructionRight.S1 <= VERY_SMALL && pReconstructionLeft.S5 < 0.0)  { ucStop++; pReconstructionLeft.S5 = 0.0; }
+			if (pReconstructionLeft.S1 <= VERY_SMALL  && pReconstructionRight.S5 > 0.0) { ucStop++; pReconstructionRight.S5 = 0.0; }
+
+			break;
+		case DOMAIN_DIR_E:
+
+			if (pReconstructionLeft.S1 <= VERY_SMALL  && pStateLeft.z > 0.0) { ucStop++; }
+			if (pReconstructionRight.S1 <= VERY_SMALL && pReconstructionLeft.S4 < 0.0)  { ucStop++; pReconstructionLeft.S4 = 0.0; }
+			if (pReconstructionLeft.S1 <= VERY_SMALL  && pReconstructionRight.S4 > 0.0) { ucStop++; pReconstructionRight.S4 = 0.0; }
+
+			break;
+		case DOMAIN_DIR_W:
+
+			if (pReconstructionRight.S1 <= VERY_SMALL && pStateRight.z < 0.0) { ucStop++; }
+			if (pReconstructionRight.S1 <= VERY_SMALL && pReconstructionLeft.S4 < 0.0)  { ucStop++; pReconstructionLeft.S4 = 0.0; }
+			if (pReconstructionLeft.S1 <= VERY_SMALL  && pReconstructionRight.S4 > 0.0) { ucStop++; pReconstructionRight.S4 = 0.0; }
+
+			break;
+	}
+
+	// Local modification of the bed level (and consequently, FSL to maintain depth)
+	pReconstructionLeft.S6   = dBedMaximum - dShiftV;
+	pReconstructionRight.S6  = dBedMaximum - dShiftV;
+	pReconstructionLeft.S0  -= dShiftV;
+	pReconstructionRight.S0 -= dShiftV;
+
+	// Stopping conditions
+	/*
+	if (   pReconstructionLeft.S1 < VERY_SMALL && 
+		 ( ( ucDirection == DOMAIN_DIR_N && pStateLeft.w > 0.0 ) ||
+		   ( ucDirection == DOMAIN_DIR_E && pStateLeft.z > 0.0 ) ) )
+		ucStop++;
+	if (   pReconstructionRight.S1 < VERY_SMALL && 
+		 ( ( ucDirection == DOMAIN_DIR_S && pStateRight.w < 0.0 ) ||
+		   ( ucDirection == DOMAIN_DIR_W && pStateRight.z < 0.0 ) ) )
+		ucStop++;
+	*/
+
+	// Output vector: Z, H, Qx, Qy, U, V, Zb
+	*pOutputLeft  = pReconstructionLeft;	
+	*pOutputRight = pReconstructionRight;
+
+	// Stop flow?
+	return ucStop;
+}

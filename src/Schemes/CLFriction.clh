@@ -1,0 +1,44 @@
+/*
+ * ------------------------------------------
+ *
+ *  HIGH-PERFORMANCE INTEGRATED MODELLING SYSTEM (HiPIMS)
+ *  Luke S. Smith and Qiuhua Liang
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  This code is licensed under GPLv3. See LICENCE
+ *  for more information.
+ * ------------------------------------------
+ *  Header file
+ *  FRICTION
+ * ------------------------------------------
+ *  Calculate the timestep using a reduction
+ *  procedure and increment the total model 
+ *  time.
+ * ------------------------------------------
+ *
+ */
+
+#ifdef USE_FUNCTION_STUBS
+
+// Function definitions
+__kernel  REQD_WG_SIZE_FULL_TS
+void per_Friction ( 
+	__constant	cl_double *,
+	__global	cl_double4 *,
+	__global	cl_double *,
+	__global	cl_double *,
+	__global	cl_double *  	// TEMP only for rainfall		
+);
+
+cl_double4 implicitFriction(
+	cl_double4,
+	cl_double,
+	cl_double,
+	cl_double
+);
+
+#endif

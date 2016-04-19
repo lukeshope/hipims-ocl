@@ -1,0 +1,89 @@
+/*
+ * ------------------------------------------
+ *
+ *  HIGH-PERFORMANCE INTEGRATED MODELLING SYSTEM (HiPIMS)
+ *  Luke S. Smith and Qiuhua Liang
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  This code is licensed under GPLv3. See LICENCE
+ *  for more information.
+ * ------------------------------------------
+ *  MINMOD SLOPE LIMITER
+ * ------------------------------------------
+ *  Required for the MUSCL-Hancock scheme
+ *  to be TVD.
+ * ------------------------------------------
+ *
+ */
+
+/*
+ *  Return a set of limited slopes to ensure the scheme is TVD.
+ */
+cl_double4 slopeLimiter( 
+		cl_double4		pStateL,
+		cl_double4		pStateC,
+		cl_double4		pStateR,
+		cl_double		dBedElevL,
+		cl_double		dBedElevM,
+		cl_double		dBedElevR
+	)
+{
+	cl_double4	pSlopes;
+
+	// No slopes on a wet-dry front
+	if ( ( pStateL.x - dBedElevL ) < VERY_SMALL || ( pStateR.x - dBedElevR ) < VERY_SMALL )
+		return (cl_double4)(0.0,0.0,0.0,0.0);
+
+	pSlopes.x	= calculateLimitedSlope( pStateL.x, pStateC.x, pStateR.x );		// Z
+	pSlopes.y	= calculateLimitedSlope( pStateL.x - dBedElevL, pStateC.x - dBedElevM, pStateR.x - dBedElevR );		// H
+	pSlopes.z	= calculateLimitedSlope( pStateL.z, pStateC.z, pStateR.z );		// Qx
+	pSlopes.w	= calculateLimitedSlope( pStateL.w, pStateC.w, pStateR.w );		// Qy
+	return pSlopes;
+}
+
+/*
+ *  Calculate the slope for a specific set of left, right and center state variables.
+ */
+cl_double calculateLimitedSlope(
+		cl_double		dLeft,
+		cl_double		dCenter,
+		cl_double		dRight
+	)
+{
+	/*
+	 *  Toro, E.F. (2001) Shock-capturing methods for free surface shallow flows.
+	 *  pp. 208-210.
+	 *
+	 *  MINBEE / MINMOD APPROACH
+	 */
+
+	cl_double	dRegionL = dCenter - dLeft;
+	cl_double	dRegionR = dRight - dCenter;
+
+	// Calculate r
+	cl_double dR = (fabs(dRegionL) <= 0.0 ? 0.0 : (dRegionR / dRegionL));
+	cl_double dPhi = fmax(fmax(0.0, fmin(MINBEE_BETA * dR, 1.0)), fmin(dR, MINBEE_BETA)) * dRegionL;
+
+	return dPhi;
+	
+	/*
+	cl_double	dr		 = ( ( dRegionL == 0.0 ) ? 0.0 : ( dRegionR / dRegionL ) );
+
+	// Calculate the limited slope coefficient (Greek symbol Xi)
+	// No min/max implementation in OpenCL...
+	cl_double dXi[4];
+	dXi[1] = 0.0;
+	dXi[2] = ( ( MINBEE_BETA * dr ) < 1.0 ? ( MINBEE_BETA * dr ) : 1.0 );
+	dXi[3] = ( ( dr < MINBEE_BETA ), dr, MINBEE_BETA );
+
+	// Maximum taken forward
+	dXi[0] = ( ( dXi[1] > dXi[2] ) ? dXi[1] : dXi[2] );
+	dXi[0] = ( ( dXi[0] > dXi[3] ) ? dXi[0] : dXi[0] );
+
+	return dXi[0] * dRegionL;
+	*/
+}

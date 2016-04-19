@@ -1,0 +1,66 @@
+/*
+ * ------------------------------------------
+ *
+ *  HIGH-PERFORMANCE INTEGRATED MODELLING SYSTEM (HiPIMS)
+ *  Luke S. Smith and Qiuhua Liang
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  This code is licensed under GPLv3. See LICENCE
+ *  for more information.
+ * ------------------------------------------
+ *  DEVICE MODULE (OPENCL, C99)
+ * ------------------------------------------
+ *  Universal header, included in every single
+ *  program compiled by this model for OpenCL.
+ * ------------------------------------------
+ *
+ */
+
+// To be made configurable at a later date
+#define USE_FUNCTION_STUBS			1
+#define USE_ALTERNATE_CONSTRUCTS	1
+
+// Enable to use printf with AMD devices
+#ifdef DEBUG_OUTPUT
+#pragma		OPENCL EXTENSION cl_amd_printf   : enable
+//#pragma		OPENCL EXTENSION cl_intel_printf : enable
+#endif
+
+#define		GRAVITY					9.81		// 9.80665
+
+// Type aliases to be consistent across different platforms
+typedef char	    cl_char;
+typedef uchar		cl_uchar;
+typedef short       cl_short;
+typedef ushort		cl_ushort;
+typedef int			cl_int;
+typedef int2		cl_int2;
+//typedef int3		cl_int3;
+typedef int4		cl_int4;
+typedef int8		cl_int8;
+typedef uint		cl_uint;
+typedef uint2		cl_uint2;
+//typedef uint3		cl_uint3;
+typedef uint4		cl_uint4;
+typedef uint8		cl_uint8;
+typedef long		cl_long;
+typedef long2		cl_long2;
+//typedef long3		cl_long3;
+typedef long4		cl_long4;
+typedef long8		cl_long8;
+typedef ulong		cl_ulong;
+typedef ulong2		cl_ulong2;
+//typedef ulong3		cl_ulong3;
+typedef ulong4		cl_ulong4;
+typedef ulong8		cl_ulong8;
+//typedef half		cl_half;			// Requires OpenCL extension...
+typedef float       cl_float;
+typedef float2      cl_float2;
+//typedef float3      cl_float3;
+typedef float4      cl_float4;
+typedef float8      cl_float8;
+

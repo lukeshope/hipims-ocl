@@ -1,0 +1,378 @@
+/*
+ * ------------------------------------------
+ *
+ *  HIGH-PERFORMANCE INTEGRATED MODELLING SYSTEM (HiPIMS)
+ *  Luke S. Smith and Qiuhua Liang
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  This code is licensed under GPLv3. See LICENCE
+ *  for more information.
+ * ------------------------------------------
+ *  INERTIAL SCHEME
+ * ------------------------------------------
+ *  Implementation of the simplified inertial
+ *  scheme
+ * ------------------------------------------
+ *
+ */
+
+/*
+ *  Calculate everything without using LDS caching
+ */
+__kernel REQD_WG_SIZE_FULL_TS
+void ine_cacheDisabled ( 
+			__constant	cl_double *  				dTimestep,						// Timestep
+			__global	cl_double const * restrict	dBedElevation,					// Bed elevation
+			__global	cl_double4 *  			pCellStateSrc,					// Current cell state data
+			__global	cl_double4 *  			pCellStateDst,					// Current cell state data
+			__global	cl_double const * restrict	dManning						// Manning values
+		)
+{
+
+	// Identify the cell we're reconstructing (no overlap)
+	__private cl_long					lIdxX			= get_global_id(0);
+	__private cl_long					lIdxY			= get_global_id(1);
+	__private cl_ulong					ulIdx, ulIdxNeig;
+	__private cl_uchar					ucDirection;
+	
+	ulIdx = getCellID(lIdxX, lIdxY);
+
+	// Don't bother if we've gone beyond the domain bounds
+	if ( lIdxX >= DOMAIN_COLS - 1 || 
+		 lIdxY >= DOMAIN_ROWS - 1 || 
+		 lIdxX <= 0 || 
+		 lIdxY <= 0 ) 
+		return;
+
+	__private cl_double		dLclTimestep	= *dTimestep;
+	__private cl_double		dManningCoef, dDeltaFSL;
+	__private cl_double		dCellBedElev,dNeigBedElevN,dNeigBedElevE,dNeigBedElevS,dNeigBedElevW;
+	__private cl_double4	pCellData,pNeigDataN,pNeigDataE,pNeigDataS,pNeigDataW;					// Z, Zmax, Qx, Qy
+	__private cl_double		dDischarge[4];															// Qn, Qe, Qs, Qw
+	__private cl_uchar		ucDryCount		= 0;
+	
+
+	// Also don't bother if we've gone beyond the total simulation time
+	if ( dLclTimestep <= 0.0 )
+		return;
+
+	// Load cell data
+	dCellBedElev		= dBedElevation[ ulIdx ];
+	pCellData			= pCellStateSrc[ ulIdx ];
+	dManningCoef		= dManning[ ulIdx ];
+
+	// Cell disabled?
+	if ( pCellData.y <= -9999.0 || pCellData.x == -9999.0 )
+	{
+		pCellStateDst[ ulIdx ] = pCellData;
+		return;
+	}
+
+	ucDirection = DOMAIN_DIR_W;
+	ulIdxNeig = getNeighbourByIndices(lIdxX, lIdxY, ucDirection);
+	dNeigBedElevW	= dBedElevation [ ulIdxNeig ];
+	pNeigDataW		= pCellStateSrc	[ ulIdxNeig ];
+	ucDirection = DOMAIN_DIR_S;
+	ulIdxNeig = getNeighbourByIndices(lIdxX, lIdxY, ucDirection);
+	dNeigBedElevS	= dBedElevation [ ulIdxNeig ];
+	pNeigDataS		= pCellStateSrc	[ ulIdxNeig ];
+	ucDirection = DOMAIN_DIR_N;
+	ulIdxNeig = getNeighbourByIndices(lIdxX, lIdxY, ucDirection);
+	dNeigBedElevN	= dBedElevation [ ulIdxNeig ];
+	pNeigDataN		= pCellStateSrc	[ ulIdxNeig ];
+	ucDirection = DOMAIN_DIR_E;
+	ulIdxNeig = getNeighbourByIndices(lIdxX, lIdxY, ucDirection);
+	dNeigBedElevE	= dBedElevation [ ulIdxNeig ];
+	pNeigDataE		= pCellStateSrc	[ ulIdxNeig ];
+
+	if ( pCellData.x  - dCellBedElev  < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataN.x - dNeigBedElevN < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataE.x - dNeigBedElevE < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataS.x - dNeigBedElevS < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataW.x - dNeigBedElevW < VERY_SMALL ) ucDryCount++;
+
+	// All neighbours are dry? Don't bother calculating
+	if ( ucDryCount >= 5 ) return;
+
+	// Calculate fluxes
+	// -> North
+	dDischarge[ DOMAIN_DIR_N ] = calculateInertialFlux(
+		dManningCoef,
+		dLclTimestep,
+		pNeigDataN.w,
+		pNeigDataN.x,
+		dNeigBedElevN,
+		pCellData.x,
+		dCellBedElev
+	);
+	// -> East
+	dDischarge[ DOMAIN_DIR_E ] = calculateInertialFlux(
+		dManningCoef,
+		dLclTimestep,
+		pNeigDataE.z,
+		pNeigDataE.x,
+		dNeigBedElevE,
+		pCellData.x,
+		dCellBedElev
+	);
+	// -> South
+	dDischarge[ DOMAIN_DIR_S ] = calculateInertialFlux(
+		dManningCoef,
+		dLclTimestep,
+		pCellData.w,
+		pCellData.x,
+		dCellBedElev,
+		pNeigDataS.x,
+		dNeigBedElevS
+	);
+	// -> West
+	dDischarge[ DOMAIN_DIR_W ] = calculateInertialFlux(
+		dManningCoef,
+		dLclTimestep,
+		pCellData.z,
+		pCellData.x,
+		dCellBedElev,
+		pNeigDataW.x,
+		dNeigBedElevW
+	);
+
+	pCellData.z		= dDischarge[DOMAIN_DIR_W];
+	pCellData.w		= dDischarge[DOMAIN_DIR_S];
+
+	// Calculation of change values per timestep and spatial dimension
+	dDeltaFSL		= ( dDischarge[DOMAIN_DIR_E] - dDischarge[DOMAIN_DIR_W] + 
+					    dDischarge[DOMAIN_DIR_N] - dDischarge[DOMAIN_DIR_S] )/DOMAIN_DELTAY;
+
+	// Update the flow state
+	pCellData.x		= pCellData.x + dLclTimestep * dDeltaFSL;
+
+	// New max FSL?
+	if ( pCellData.x > pCellData.y )
+		pCellData.y = pCellData.x;
+
+	// Crazy low depths?
+	if ( pCellData.x - dCellBedElev < VERY_SMALL )
+		pCellData.x = dCellBedElev;
+
+	// Commit to global memory
+	pCellStateDst[ ulIdx ] = pCellData;
+}
+
+/*
+ *  Calculate everything by also using LDS caching
+ */
+__kernel REQD_WG_SIZE_FULL_TS
+void ine_cacheEnabled ( 
+			__constant	cl_double *  				dTimestep,						// Timestep
+			__global	cl_double const * restrict	dBedElevation,					// Bed elevation
+			__global	cl_double4 *  			pCellStateSrc,					// Current cell state data
+			__global	cl_double4 *  			pCellStateDst,					// Current cell state data
+			__global	cl_double const * restrict	dManning						// Manning values
+		)
+{
+	__local   cl_double4				lpCellState[ INE_DIM1 ][ INE_DIM2 ];		// Current cell state data (cache)
+
+	// Identify the cell we're reconstructing (no overlap)
+	__private cl_double					dLclTimestep;
+	__private cl_long					lIdxX			= get_global_id(0) - get_group_id(0) * 2;
+	__private cl_long					lIdxY			= get_global_id(1) - get_group_id(1) * 2;
+	__private cl_long					lLocalX			= get_local_id(0);
+	__private cl_long					lLocalY			= get_local_id(1);
+	__private cl_ulong					lLocalSizeX		= get_local_size(0);
+	__private cl_ulong					lLocalSizeY		= get_local_size(1);
+	__private cl_double4				pCellData;
+	__private cl_double					dManningCoef;
+	__private cl_double					dCellBedElev;
+	__private cl_ulong					ulIdx;
+
+	if ( lIdxX > DOMAIN_COLS - 1 || 
+		 lIdxY > DOMAIN_ROWS - 1 || 
+		 lIdxX < 0 || 
+		 lIdxY < 0 )
+	{
+		// Ideally we'd just exit the function here, but then we wont reach the barrier
+		lIdxX = max((cl_long)0,min((cl_long)(DOMAIN_COLS - 1),lIdxX));
+		lIdxY = max((cl_long)0,min((cl_long)(DOMAIN_ROWS - 1),lIdxY));
+	}
+
+	ulIdx = getCellID(lIdxX, lIdxY);
+
+	// The max FSL is substituted with the bed elevation, thereby reducing LDS consumption
+	dLclTimestep							= *dTimestep;
+	pCellData								= pCellStateSrc[ ulIdx ];
+	dCellBedElev							= dBedElevation[ ulIdx ];
+	dManningCoef							= dManning[ ulIdx ];
+	lpCellState[ lLocalX ][ lLocalY ]		= pCellData;
+	lpCellState[ lLocalX ][ lLocalY ].y		= dCellBedElev;
+
+	barrier( CLK_LOCAL_MEM_FENCE );
+
+	// Cell disabled?
+	if ( pCellData.y <= -9999.0 || pCellData.x == -9999.0 )
+	{
+		pCellStateDst[ ulIdx ] = pCellData;
+		return;
+	}
+
+	// Don't bother if we've gone beyond the domain bounds
+	if ( lIdxX >= DOMAIN_COLS - 1 || 
+		 lIdxY >= DOMAIN_ROWS - 1 || 
+		 lIdxX <= 0 || 
+		 lIdxY <= 0 ||
+		 lLocalX >= lLocalSizeX - 1 ||
+		 lLocalY >= lLocalSizeY - 1 ||
+		 lLocalX <= 0 ||
+		 lLocalY <= 0 ) 
+		return;
+
+	__private cl_double		dNeigBedElevN,dNeigBedElevE,dNeigBedElevS,dNeigBedElevW;
+	__private cl_double4	pNeigDataN,pNeigDataE,pNeigDataS,pNeigDataW;							// Z, Zb, Qx, Qy
+	__private cl_double		dDeltaFSL;																
+	__private cl_double		dDischarge[4];															// Qn, Qe, Qs, Qw
+	__private cl_uchar		ucDryCount		= 0;
+	
+
+	// Also don't bother if we've gone beyond the total simulation time
+	if ( dLclTimestep <= 0.0 )
+		return;
+
+	pNeigDataW		= lpCellState[ lLocalX - 1 ][ lLocalY ];
+	pNeigDataS		= lpCellState[ lLocalX ][ lLocalY - 1 ];
+	pNeigDataE		= lpCellState[ lLocalX + 1 ][ lLocalY ];
+	pNeigDataN		= lpCellState[ lLocalX ][ lLocalY + 1 ];
+	dNeigBedElevW	= pNeigDataW.y;
+	dNeigBedElevS	= pNeigDataS.y;
+	dNeigBedElevE	= pNeigDataE.y;
+	dNeigBedElevN	= pNeigDataN.y;
+
+	// Cell disabled?
+	if ( pCellData.y <= -9999.0 || pCellData.x == -9999.0 )
+	{
+		pCellStateDst[ ulIdx ] = pCellData;
+		return;
+	}
+
+	if ( pCellData.x  - dCellBedElev  < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataN.x - dNeigBedElevN < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataE.x - dNeigBedElevE < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataS.x - dNeigBedElevS < VERY_SMALL ) ucDryCount++;
+	if ( pNeigDataW.x - dNeigBedElevW < VERY_SMALL ) ucDryCount++;
+
+	// All neighbours are dry? Don't bother calculating
+	if ( ucDryCount >= 5 ) return;
+
+	// Calculate fluxes
+	// -> North
+	dDischarge[ DOMAIN_DIR_N ] = calculateInertialFlux(
+		dManningCoef,
+		dLclTimestep,
+		pNeigDataN.w,
+		pNeigDataN.x,
+		dNeigBedElevN,
+		pCellData.x,
+		dCellBedElev
+	);
+	// -> East
+	dDischarge[ DOMAIN_DIR_E ] = calculateInertialFlux(
+		dManningCoef,
+		dLclTimestep,
+		pNeigDataE.z,
+		pNeigDataE.x,
+		dNeigBedElevE,
+		pCellData.x,
+		dCellBedElev
+	);
+	// -> South
+	dDischarge[ DOMAIN_DIR_S ] = calculateInertialFlux(
+		dManningCoef,
+		dLclTimestep,
+		pCellData.w,
+		pCellData.x,
+		dCellBedElev,
+		pNeigDataS.x,
+		dNeigBedElevS
+	);
+	// -> West
+	dDischarge[ DOMAIN_DIR_W ] = calculateInertialFlux(
+		dManningCoef,
+		dLclTimestep,
+		pCellData.z,
+		pCellData.x,
+		dCellBedElev,
+		pNeigDataW.x,
+		dNeigBedElevW
+	);
+
+	pCellData.z		= dDischarge[DOMAIN_DIR_W];
+	pCellData.w		= dDischarge[DOMAIN_DIR_S];
+
+	// Calculation of change values per timestep and spatial dimension
+	dDeltaFSL		= ( dDischarge[DOMAIN_DIR_E] - dDischarge[DOMAIN_DIR_W] + 
+					    dDischarge[DOMAIN_DIR_N] - dDischarge[DOMAIN_DIR_S] )/DOMAIN_DELTAY;
+
+	// Update the flow state
+	pCellData.x		= pCellData.x + dLclTimestep * dDeltaFSL;
+
+	// New max FSL?
+	if ( pCellData.x > pCellData.y )
+		pCellData.y = pCellData.x;
+
+	// Crazy low depths?
+	if ( pCellData.x - dCellBedElev < VERY_SMALL )
+		pCellData.x = dCellBedElev;
+
+	// Commit to global memory
+	pCellStateDst[ ulIdx ] = pCellData;
+}
+
+/*
+ *  Calculate the flux using an inertial approximation in terms of volumetric discharge per unit width
+ */
+cl_double calculateInertialFlux(
+		cl_double		dManningCoef,					// Manning coefficient
+		cl_double		dTimestep,						// Timestep
+		cl_double		dPreviousDischarge,				// Last current discharge
+		cl_double		dLevelUpstream,					// Upstream current level
+		cl_double		dBedUpstream,					// Upstream bed elevation
+		cl_double		dLevelDownstream,				// Downstream current level
+		cl_double		dBedDownstream					// Downstream bed elevation
+	)
+{
+	cl_double dDischarge = 0.0;
+	cl_double dDepth	 = fmax( dLevelDownstream, dLevelUpstream ) - max( dBedUpstream, dBedDownstream );
+	cl_double dSlope	 = ( dLevelDownstream - dLevelUpstream ) / DOMAIN_DELTAX;
+
+	// Inertial 
+	dDischarge = ( dPreviousDischarge - ( GRAVITY * dDepth * dTimestep * dSlope ) ) /
+			     ( 1.0 + GRAVITY * dDepth * dTimestep * dManningCoef * dManningCoef * fabs( dPreviousDischarge ) /
+				   pow( dDepth, 10.0/3.0 ) );
+
+	// Froude number discharge limiter
+	if ( dDischarge > 0.0 &&
+		 ( ( fabs( dDischarge ) / dDepth ) / sqrt( GRAVITY * dDepth ) ) > FROUDE_LIMIT )
+		dDischarge = dDepth * sqrt( GRAVITY * dDepth ) * FROUDE_LIMIT;
+	if ( dDischarge < 0.0 &&
+		 ( ( fabs( dDischarge ) / dDepth ) / sqrt( GRAVITY * dDepth ) ) > FROUDE_LIMIT )
+		dDischarge = 0.0 - dDepth * sqrt( GRAVITY * dDepth ) * FROUDE_LIMIT;
+
+	// Some completely arbitrary other limiter?!
+	// This is used in CAESAR-LISFLOOD but I can't for the life of me work out the logic behind it...
+	/*
+	if ( dDischarge > 0.0 &&
+		 ( fabs( dDischarge ) * dTimestep / (cl_double)(DOMAIN_DELTAX) ) > ( dLevelUpstream - dBedUpstream ) / 4.0 )
+		dDischarge = ( ( dLevelUpstream - dBedUpstream ) * (cl_double)(DOMAIN_DELTAX) ) / 5.0 / dTimestep;
+	if ( dDischarge < 0.0 &&
+		 ( fabs( dDischarge ) * dTimestep / (cl_double)(DOMAIN_DELTAX) ) > ( dLevelDownstream - dBedDownstream ) / 4.0 )
+		dDischarge = 0.0 - ( ( dLevelDownstream - dBedDownstream ) * (cl_double)(DOMAIN_DELTAX) ) / 5.0 / dTimestep;
+	*/
+
+	if ( dDepth < VERY_SMALL )
+		dDischarge = 0.0;
+
+	// Done...
+	return dDischarge;
+}

@@ -1,0 +1,46 @@
+/*
+ * ------------------------------------------
+ *
+ *  HIGH-PERFORMANCE INTEGRATED MODELLING SYSTEM (HiPIMS)
+ *  Luke S. Smith and Qiuhua Liang
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  This code is licensed under GPLv3. See LICENCE
+ *  for more information.
+ * ------------------------------------------
+ *  Header file
+ *  CARTESIAN DOMAIN
+ * ------------------------------------------
+ *  Management functions for a Cartesian
+ *  domain.
+ * ------------------------------------------
+ *
+ */
+
+// Note: Some compile-time constants are defined automatically by
+// the model, including:
+//   DOMAIN_CELLCOUNT
+//   DOMAIN_ROWS
+//   DOMAIN_COLS
+//   DOMAIN_DELTAX
+//   DOMAIN_DELTAY
+
+// Neighbour directions
+#define DOMAIN_DIR_N	0
+#define DOMAIN_DIR_E	1
+#define DOMAIN_DIR_S	2
+#define DOMAIN_DIR_W	3
+
+#ifdef USE_FUNCTION_STUBS
+
+// Function definitions
+cl_ulong	getNeighbourID(cl_ulong, cl_uchar);
+cl_ulong	getNeighbourByIndices(cl_long, cl_long, cl_uchar);
+cl_ulong	getCellID(cl_long, cl_long);
+void		getCellIndices( cl_ulong, cl_long*, cl_long* );
+
+#endif

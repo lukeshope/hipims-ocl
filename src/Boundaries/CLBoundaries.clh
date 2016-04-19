@@ -1,0 +1,125 @@
+/*
+ * ------------------------------------------
+ *
+ *  HIGH-PERFORMANCE INTEGRATED MODELLING SYSTEM (HiPIMS)
+ *  Luke S. Smith and Qiuhua Liang
+ *  luke@smith.ac
+ *
+ *  School of Civil Engineering & Geosciences
+ *  Newcastle University
+ * 
+ * ------------------------------------------
+ *  This code is licensed under GPLv3. See LICENCE
+ *  for more information.
+ * ------------------------------------------
+ *  Header file
+ *  BOUNDARY CONDITIONS
+ * ------------------------------------------
+ *  Management functions for a domain
+ *  boundaries.
+ * ------------------------------------------
+ *
+ */
+
+// Hydrological timestep
+// This should be low to capture velocities properly, but isn't
+// always necessary
+// TODO: Make configurable...
+#define TIMESTEP_HYDROLOGICAL			1.0
+
+// Boundary types
+#define BOUNDARY_ATMOSPHERIC			0
+#define BOUNDARY_FLOWCONDITIONS			1
+
+// Boundary operating definitions
+#define BOUNDARY_DEFINEDAS_DEPTH		1
+#define BOUNDARY_DEFINEDAS_DISCHARGE	2
+#define BOUNDARY_DEFINED_LEVEL			4
+#define BOUNDARY_DEFINED_FLOWX			8
+#define BOUNDARY_DEFINED_FLOWY			16
+#define BOUNDARY_DEFINEDAS_NEIGHBOUR_N	32
+#define BOUNDARY_DEFINEDAS_NEIGHBOUR_E	64
+#define BOUNDARY_DEFINEDAS_NEIGHBOUR_S	128
+#define BOUNDARY_DEFINEDAS_NEIGHBOUR_W	256
+#define	BOUNDARY_DEFINEDAS_REFLECTIVE	512
+#define	BOUNDARY_DEFINEDAS_FLOWSURGE	1024
+#define	BOUNDARY_DEFINEDAS_CRITICALDEPTH	2048
+#define BOUNDARY_DEFINEDAS_FSL			0
+#define BOUNDARY_DEFINEDAS_VELOCITY		0
+#define BOUNDARY_UNDEFINED_LEVEL		0
+#define BOUNDARY_UNDEFINED_FLOWX		0
+#define BOUNDARY_UNDEFINED_FLOWY		0
+
+#define BOUNDARY_UNIFORM_RAIN_INTENSITY	0
+#define BOUNDARY_UNIFORM_LOSS_RATE		1
+
+#define BOUNDARY_GRIDDED_RAIN_INTENSITY 0
+#define BOUNDARY_GRIDDED_RAIN_ACCUMUL	1
+#define BOUNDARY_GRIDDED_MASS_FLUX		2
+
+#ifdef USE_FUNCTION_STUBS
+
+typedef struct sBdyCellConfiguration
+{
+	cl_ulong		TimeseriesEntries;
+	cl_double		TimeseriesInterval;
+	cl_double		TimeseriesLength;
+	cl_ulong		RelationCount;
+	cl_ulong		Definition;
+} sBdyCellConfiguration;
+
+typedef struct sBdyGriddedConfiguration
+{
+	cl_double		TimeseriesInterval;
+	cl_double		GridResolution;
+	cl_double		GridOffsetX;
+	cl_double		GridOffsetY;
+	cl_ulong		TimeseriesEntries;
+	cl_ulong		Definition;
+	cl_ulong		GridRows;
+	cl_ulong		GridCols;
+} sBdyGriddedConfiguration;
+
+typedef struct sBdyUniformConfiguration
+{
+	cl_uint			TimeseriesEntries;
+	cl_double		TimeseriesInterval;
+	cl_double		TimeseriesLength;
+	cl_uint			Definition;
+} sBdyUniformConfiguration;
+
+__kernel void bdy_Cell ( 
+	__constant		sBdyCellConfiguration *,
+	__global		cl_ulong const * restrict,
+	__global		cl_double4 const * restrict,
+	__global		cl_double *,
+	__global		cl_double *,
+	__global		cl_double *,
+	__global		cl_double4 *,
+	__global		cl_double *,
+	__global		cl_double *
+);
+
+__kernel void bdy_Gridded ( 
+	__constant		sBdyGriddedConfiguration *,
+	__global		cl_double const * restrict,
+	__global		cl_double *,
+	__global		cl_double *,
+	__global		cl_double *,
+	__global		cl_double4 *,
+	__global		cl_double *,
+	__global		cl_double *
+);
+
+__kernel void bdy_Uniform ( 
+	__constant		sBdyUniformConfiguration *,
+	__global		cl_double2 const * restrict,
+	__global		cl_double *,
+	__global		cl_double *,
+	__global		cl_double *,
+	__global		cl_double4 *,
+	__global		cl_double *,
+	__global		cl_double *
+);
+
+#endif
