@@ -456,7 +456,7 @@ void	CModel::logProgress( CBenchmark::sPerformanceMetrics* sTotalMetrics )
 	this->pProgressCoords = Util::getCursorPosition();
 	if (this->dCurrentTime < this->dSimulationTime) 
 	{
-		this->pProgressCoords.sY = max(0, this->pProgressCoords.sY - (16 + domains->getDomainCount()));
+		this->pProgressCoords.sY = max(0, this->pProgressCoords.sY - (16 + (cl_int)domains->getDomainCount()));
 		Util::setCursorPosition(this->pProgressCoords);
 	}
 }

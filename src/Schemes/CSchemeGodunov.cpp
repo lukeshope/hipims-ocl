@@ -93,7 +93,7 @@ CSchemeGodunov::CSchemeGodunov()
 	oclBufferTimeHydrological			= NULL;
 
 	if ( this->bDebugOutput )
-		model::doError( "Debug mode is enabled!", model::errorCodes::kLevelWarning );		
+		model::doError( "Debug mode is enabled!", model::errorCodes::kLevelWarning );
 
 	pManager->log->writeLine( "Populated scheme with default settings." );
 }
@@ -376,7 +376,7 @@ void CSchemeGodunov::logDetails()
 	pManager->log->writeLine( "  Kernel queue mode:  " + (std::string)( this->bAutomaticQueue ? "Automatic" : "Fixed size" ), true, wColour );
 	pManager->log->writeLine( (std::string)( this->bAutomaticQueue ? "  Initial queue:      " : "  Fixed queue:        " ) + toString( this->uiQueueAdditionSize ) + " iteration(s)", true, wColour );
 	pManager->log->writeLine( "  Debug output:       " + (std::string)( this->bDebugOutput ? "Enabled" : "Disabled" ), true, wColour );
-	
+
 	pManager->log->writeDivide();
 }
 
@@ -1425,7 +1425,7 @@ void	CSchemeGodunov::runSimulation( double dTargetTime, double dRealTime )
 			// We're aiming for a seconds worth of work to be carried out
 			double dBatchDuration = dRealTime - dBatchStartedTime;
 			unsigned int uiOldQueueAdditionSize = this->uiQueueAdditionSize;
-			this->uiQueueAdditionSize = static_cast<unsigned int>(max(1, min(this->uiBatchRate * 3, static_cast<unsigned int>(ceil(1.0 / (dBatchDuration / static_cast<double>(this->uiQueueAdditionSize)))))));
+			this->uiQueueAdditionSize = static_cast<unsigned int>(max(static_cast<unsigned int>(1), min(this->uiBatchRate * 3, static_cast<unsigned int>(ceil(1.0 / (dBatchDuration / static_cast<double>(this->uiQueueAdditionSize)))))));
 
 			// Stop silly jumps in the queue addition size
 			if (this->uiQueueAdditionSize > uiOldQueueAdditionSize * 2 &&
