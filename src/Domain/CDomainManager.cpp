@@ -344,6 +344,10 @@ CDomainManager::Bounds		CDomainManager::getTotalExtent()
 {
 	CDomainManager::Bounds	b;
 	// TODO: Calculate the total extent
+	b.N = NULL;
+	b.E = NULL;
+	b.S = NULL;
+	b.W = NULL;
 	return b;
 }
 
