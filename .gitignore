@@ -5,6 +5,7 @@ _debug*.log
 # Visual Studio clutter
 *.sdf
 *.suo
+*.opensdf
 
 # Compiled Object files
 *.slo

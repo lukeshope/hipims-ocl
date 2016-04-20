@@ -108,7 +108,7 @@ class CScheme
 		CDomain*			getDomain()						{ return pDomain; }						// Fetch the domain we're working on
 		unsigned long long	getCellsCalculated()			{ return ulCurrentCellsCalculated; }	// Number of cells calculated so far
 		double				getCurrentTimestep()			{ return dCurrentTimestep; }			// Current timestep
-		double				getCurrentSuspendedState()		{ return ( dCurrentTimestep < 0.0 ); }	// Is the simulation suspended?
+		bool				getCurrentSuspendedState()		{ return ( dCurrentTimestep < 0.0 ); }	// Is the simulation suspended?
 		double				getCurrentTime()				{ return dCurrentTime; }				// Current progress
 		unsigned int		getBatchSize()					{ return uiQueueAdditionSize; }			// Get the batch size
 		unsigned int		getIterationsSuccessful()		{ return uiBatchSuccessful; }			// Get the successful iterations

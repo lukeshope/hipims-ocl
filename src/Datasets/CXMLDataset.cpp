@@ -309,6 +309,6 @@ bool	CXMLDataset::isValidFloat( char *cValue )
 	// TODO: Improve regex to catch more errors
 	return boost::regex_match( 
 		std::string( cValue ),
-		boost::regex( "([\\.0-9\-]+)" )
+		boost::regex( "([\\.0-9-]+)" )
 	);
 }
