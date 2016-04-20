@@ -166,7 +166,7 @@ __kernel void bdy_Uniform(
 	if (dLclTimestep < TIMESTEP_HYDROLOGICAL || dLclRealTimestep <= 0.0)
 		return;
 
-	if ( dLclTime >= pConfig.TimeseriesLength )
+	if ( dLclTime >= pConfig.TimeseriesLength || pCellData.y <= -9999.0 )
 		return;
 
 	// Calculate the right cell and stuff to be grabbing data from here...

@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<!DOCTYPE configuration PUBLIC "HiPIMS Configuration Schema 1.1" "http://www.lukesmith.org.uk/research/namespace/hipims/1.1/"[]>
+<configuration>
+	<metadata>
+		<name>Newcastle upon Tyne - 2m</name>
+		<description>Test surface water flood model driven by no real rainfall input (70mm/hr), covering part of the university campus.</description>
+	</metadata>
+	<execution>
+		<executor name="OpenCL">
+			<parameter name="deviceFilter" value="GPU" />
+		</executor>
+	</execution>
+	<simulation>
+		<parameter name="duration" value="7200" />
+		<parameter name="outputFrequency" value="600" />
+		<parameter name="floatingPointPrecision" value="double" />
+		<domainSet>
+			<domain type="cartesian" deviceNumber="1">
+				<data sourceDir="newcastle-centre/topography/" 
+					  targetDir="newcastle-centre/output/">
+					<dataSource type="constant" value="velocityX" source="0.0" />
+					<dataSource type="constant" value="velocityY" source="0.0" />
+					<dataSource type="constant" value="depth" source="0.0" />
+					<dataSource type="constant" value="manningCoefficient" source="0.030" />
+					<dataSource type="raster" value="structure,dem" source="NewcastleCentreDEM_2m.img" />
+					<dataTarget type="raster" value="depth" format="HFA" target="depth_%t.img" />
+					<dataTarget type="raster" value="velocityX" format="HFA" target="velX_%t.img" />
+					<dataTarget type="raster" value="velocityY" format="HFA" target="velY_%t.img" />
+					<dataTarget type="raster" value="fsl" format="HFA" target="fsl_%t.img" />
+					<dataTarget type="raster" value="maxdepth" format="HFA" target="maxdepth_%t.img" />
+				</data>
+				<scheme name="Godunov">
+					<parameter name="courantNumber" value="0.50" />
+					<parameter name="frictionEffects" value="yes" />
+					<parameter name="groupSize" value="32x8" />
+				</scheme>
+				<boundaryConditions sourceDir="newcastle-centre/">
+					<domainEdge edge="north" treatment="closed" />
+					<domainEdge edge="south" treatment="closed" />
+					<domainEdge edge="east" treatment="closed" />
+					<domainEdge edge="west" treatment="closed" />
+					<timeseries type="atmospheric" 
+								name="Drainage" 
+								value="loss-rate" 
+								source="boundaries/drainage.csv" />
+					<timeseries type="atmospheric" 
+								name="Rainfall" 
+								value="rain-intensity" 
+								source="boundaries/rainfall.csv" />
+				</boundaryConditions>
+			</domain>
+		</domainSet>
+    </simulation>
+</configuration>
