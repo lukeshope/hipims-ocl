@@ -1,3 +1,3 @@
-.clc linguist-language=OpenCL
-.clh linguist-language=OpenCL
+*.clc linguist-language=OpenCL
+*.clh linguist-language=OpenCL
 
