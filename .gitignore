@@ -2,6 +2,10 @@
 _model.log
 _debug*.log
 
+# Visual Studio clutter
+*.sdf
+*.suo
+
 # Compiled Object files
 *.slo
 *.lo

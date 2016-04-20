@@ -1,0 +1,158 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{FA97D6E4-0814-4983-9252-EB9C2D5A4216}</ProjectGuid>
+    <Keyword>MakeFileProj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <NMakeBuildCommandLine>winbuild_debug.bat</NMakeBuildCommandLine>
+    <NMakeOutput>bin/win32/hipims_debug.exe</NMakeOutput>
+    <NMakeCleanCommandLine>winbuild_debug.bat clean</NMakeCleanCommandLine>
+    <NMakeReBuildCommandLine>winbuild_debug.bat rebuild</NMakeReBuildCommandLine>
+    <NMakePreprocessorDefinitions>WIN32;_DEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <NMakeBuildCommandLine>winbuild_release.bat</NMakeBuildCommandLine>
+    <NMakeOutput>bin/win32/hipims.exe</NMakeOutput>
+    <NMakeCleanCommandLine>winbuild_release.bat clean</NMakeCleanCommandLine>
+    <NMakeReBuildCommandLine>winbuild_release.bat rebuild</NMakeReBuildCommandLine>
+    <NMakePreprocessorDefinitions>WIN32;NDEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\base\CExecutorControl.cpp" />
+    <ClCompile Include="src\boundaries\CBoundary.cpp" />
+    <ClCompile Include="src\boundaries\CBoundaryCell.cpp" />
+    <ClCompile Include="src\boundaries\CBoundaryGridded.cpp" />
+    <ClCompile Include="src\boundaries\CBoundaryMap.cpp" />
+    <ClCompile Include="src\boundaries\CBoundaryUniform.cpp" />
+    <ClCompile Include="src\CModel.cpp" />
+    <ClCompile Include="src\datasets\CCSVDataset.cpp" />
+    <ClCompile Include="src\datasets\CRasterDataset.cpp" />
+    <ClCompile Include="src\datasets\CXMLDataset.cpp" />
+    <ClCompile Include="src\datasets\tinyxml\tinyxml2.cpp" />
+    <ClCompile Include="src\domain\cartesian\CDomainCartesian.cpp" />
+    <ClCompile Include="src\domain\CDomain.cpp" />
+    <ClCompile Include="src\domain\CDomainBase.cpp" />
+    <ClCompile Include="src\domain\CDomainManager.cpp" />
+    <ClCompile Include="src\domain\links\CDomainLink.cpp" />
+    <ClCompile Include="src\domain\remote\CDomainRemote.cpp" />
+    <ClCompile Include="src\general\CBenchmark.cpp" />
+    <ClCompile Include="src\general\CLog.cpp" />
+    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\mpi\CMPIManager.cpp" />
+    <ClCompile Include="src\mpi\CMPINode.cpp" />
+    <ClCompile Include="src\opencl\executors\CExecutorControlOpenCL.cpp" />
+    <ClCompile Include="src\opencl\executors\COCLBuffer.cpp" />
+    <ClCompile Include="src\opencl\executors\COCLDevice.cpp" />
+    <ClCompile Include="src\opencl\executors\COCLKernel.cpp" />
+    <ClCompile Include="src\opencl\executors\COCLProgram.cpp" />
+    <ClCompile Include="src\platforms\unix_platform.cpp" />
+    <ClCompile Include="src\platforms\windows_platform.cpp" />
+    <ClCompile Include="src\schemes\CScheme.cpp" />
+    <ClCompile Include="src\schemes\CSchemeGodunov.cpp" />
+    <ClCompile Include="src\schemes\CSchemeInertial.cpp" />
+    <ClCompile Include="src\schemes\CSchemeMUSCLHancock.cpp" />
+    <ClCompile Include="src\util.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\base\CExecutorControl.h" />
+    <ClInclude Include="src\boundaries\CBoundary.h" />
+    <ClInclude Include="src\boundaries\CBoundaryCell.h" />
+    <ClInclude Include="src\boundaries\CBoundaryGridded.h" />
+    <ClInclude Include="src\boundaries\CBoundaryMap.h" />
+    <ClInclude Include="src\boundaries\CBoundaryUniform.h" />
+    <ClInclude Include="src\CLCode.h" />
+    <ClInclude Include="src\CModel.h" />
+    <ClInclude Include="src\common.h" />
+    <ClInclude Include="src\datasets\CCSVDataset.h" />
+    <ClInclude Include="src\datasets\CRasterDataset.h" />
+    <ClInclude Include="src\datasets\CXMLDataset.h" />
+    <ClInclude Include="src\datasets\tinyxml\tinyxml2.h" />
+    <ClInclude Include="src\domain\cartesian\CDomainCartesian.h" />
+    <ClInclude Include="src\domain\CDomain.h" />
+    <ClInclude Include="src\domain\CDomainBase.h" />
+    <ClInclude Include="src\domain\CDomainManager.h" />
+    <ClInclude Include="src\domain\links\CDomainLink.h" />
+    <ClInclude Include="src\domain\remote\CDomainRemote.h" />
+    <ClInclude Include="src\general\CBenchmark.h" />
+    <ClInclude Include="src\general\CLog.h" />
+    <ClInclude Include="src\main.h" />
+    <ClInclude Include="src\mpi\CMPIManager.h" />
+    <ClInclude Include="src\mpi\CMPINode.h" />
+    <ClInclude Include="src\opencl\executors\CExecutorControlOpenCL.h" />
+    <ClInclude Include="src\opencl\executors\COCLBuffer.h" />
+    <ClInclude Include="src\opencl\executors\COCLDevice.h" />
+    <ClInclude Include="src\opencl\executors\COCLKernel.h" />
+    <ClInclude Include="src\opencl\executors\COCLProgram.h" />
+    <ClInclude Include="src\opencl\opencl.h" />
+    <ClInclude Include="src\platforms.h" />
+    <ClInclude Include="src\platforms\unix_platform.h" />
+    <ClInclude Include="src\platforms\windows_platform.h" />
+    <ClInclude Include="src\resource.h" />
+    <ClInclude Include="src\schemes\CScheme.h" />
+    <ClInclude Include="src\schemes\CSchemeGodunov.h" />
+    <ClInclude Include="src\schemes\CSchemeInertial.h" />
+    <ClInclude Include="src\schemes\CSchemeMUSCLHancock.h" />
+    <ClInclude Include="src\util.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="src\CLCode.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\boundaries\CLBoundaries.clc" />
+    <None Include="src\boundaries\CLBoundaries.clh" />
+    <None Include="src\domain\cartesian\CLDomainCartesian.clc" />
+    <None Include="src\domain\cartesian\CLDomainCartesian.clh" />
+    <None Include="src\opencl\executors\CLUniversalHeader.clh" />
+    <None Include="src\schemes\CLDynamicTimestep.clc" />
+    <None Include="src\schemes\CLDynamicTimestep.clh" />
+    <None Include="src\schemes\CLFriction.clc" />
+    <None Include="src\schemes\CLFriction.clh" />
+    <None Include="src\schemes\CLSchemeGodunov.clc" />
+    <None Include="src\schemes\CLSchemeGodunov.clh" />
+    <None Include="src\schemes\CLSchemeInertial.clc" />
+    <None Include="src\schemes\CLSchemeInertial.clh" />
+    <None Include="src\schemes\CLSchemeMUSCLHancock.clc" />
+    <None Include="src\schemes\CLSchemeMUSCLHancock.clh" />
+    <None Include="src\schemes\limiters\CLSlopeLimiterMINMOD.clc" />
+    <None Include="src\schemes\limiters\CLSlopeLimiterMINMOD.clh" />
+    <None Include="src\solvers\CLSolverHLLC.clc" />
+    <None Include="src\solvers\CLSolverHLLC.clh" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
