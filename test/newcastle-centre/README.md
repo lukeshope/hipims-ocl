@@ -3,6 +3,8 @@ Newcastle-upon-Tyne
 
 This is a simple test directly applying rainfall to a small part of the centre of Newcastle upon Tyne. The area has intentionally been selected as one which highlights some of the limitations of using these hydraulic models.
 
+![Image of model domain](/test/newcastle-centre/media/domain.png?raw=true "Newcastle domain")
+
 Inputs
 ------
 To be completed.
