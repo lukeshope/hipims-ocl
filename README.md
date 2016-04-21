@@ -19,6 +19,15 @@ This software was created for use in academic research. It is now licensed under
     * Timesteps can also be made independent in each separate domain, which uses a forecasting method to determine an appropriate point to synchronise data between domains (_this is experimental!_)
     * Overlapping domains are processed automatically to determine the constraints they place on the simulation (some overlap is required for exchanging information)
 
+## Download
+You probably want the HiPIMS [binaries](/dist/hipims-win32-master.zip) for Windows, and perhaps the [tests](/dist/hipims-test-master.zip) to give you an idea of what a configuration file looks like.
+
+Your system will need the [Visual Studio 2013 runtime](https://www.microsoft.com/en-us/download/details.aspx?id=40784), but it is quite likely you already have this.
+
+There is no graphical interface supplied with HiPIMS; this is a console-only application. We did start developing an interface, but as most of our applications ran on high-performance servers without a graphical interface, it never reached maturity. 
+
+![HiPIMS console view](/docs/hipims-console-win.png?raw=true "HiPIMS Console View")
+	
 ## Use
 **You will need a system which can run [OpenCL](https://en.wikipedia.org/wiki/OpenCL)**. This includes most modern Intel CPUs and APUs, AMD GPUs and CPUs, and NVIDIA GPUs. Your graphics card drivers may already include the OpenCL runtime. If you do not already have an OpenCL runtime, you should try downloading:
 * [Intel OpenCL runtime](https://software.intel.com/en-us/articles/opencl-drivers)

@@ -22,23 +22,15 @@
 #include "../common.h"
 #include "../Datasets/CCSVDataset.h"
 
-#define BOUNDARY_DEFINEDAS_DEPTH		1
-#define BOUNDARY_DEFINEDAS_DISCHARGE	2
-#define BOUNDARY_DEFINED_LEVEL			4
-#define BOUNDARY_DEFINED_FLOWX			8
-#define BOUNDARY_DEFINED_FLOWY			16
-#define BOUNDARY_DEFINEDAS_NEIGHBOUR_N	32
-#define BOUNDARY_DEFINEDAS_NEIGHBOUR_E	64
-#define BOUNDARY_DEFINEDAS_NEIGHBOUR_S	128
-#define BOUNDARY_DEFINEDAS_NEIGHBOUR_W	256
-#define	BOUNDARY_DEFINEDAS_REFLECTIVE	512
-#define	BOUNDARY_DEFINEDAS_FLOWSURGE	1024
-#define	BOUNDARY_DEFINEDAS_CRITICALDEPTH	2048
-#define BOUNDARY_DEFINEDAS_FSL			0
-#define BOUNDARY_DEFINEDAS_VELOCITY		0
-#define BOUNDARY_UNDEFINED_LEVEL		0
-#define BOUNDARY_UNDEFINED_FLOWX		0
-#define BOUNDARY_UNDEFINED_FLOWY		0
+#define BOUNDARY_DEPTH_IGNORE			0
+#define BOUNDARY_DEPTH_IS_FSL			1
+#define BOUNDARY_DEPTH_IS_DEPTH			2
+#define BOUNDARY_DEPTH_IS_CRITICAL		3
+
+#define BOUNDARY_DISCHARGE_IGNORE		0
+#define BOUNDARY_DISCHARGE_IS_DISCHARGE	1
+#define BOUNDARY_DISCHARGE_IS_VELOCITY	2
+#define BOUNDARY_DISCHARGE_IS_VOLUME	3
 
 namespace model {
 
@@ -53,18 +45,18 @@ namespace types { enum types {
 }; }
 
 namespace depthValues { enum depthValues {
-	kValueFSL						= BOUNDARY_DEFINED_LEVEL | BOUNDARY_DEFINEDAS_FSL,		// 2nd column in timeseries is the FSL
-	kValueDepth						= BOUNDARY_DEFINED_LEVEL | BOUNDARY_DEFINEDAS_DEPTH,	// 2nd column in timeseries is a depth
-	kValueCriticalDepth				= BOUNDARY_DEFINED_LEVEL | BOUNDARY_DEFINEDAS_DEPTH | BOUNDARY_DEFINEDAS_CRITICALDEPTH, // Force critical depth based on the discharge
-	kValueIgnored					= BOUNDARY_UNDEFINED_LEVEL								// 2nd column can be ignored
+	kValueFSL = BOUNDARY_DEPTH_IS_FSL,		// 2nd column in timeseries is the FSL
+	kValueDepth = BOUNDARY_DEPTH_IS_DEPTH,	// 2nd column in timeseries is a depth
+	kValueCriticalDepth = BOUNDARY_DEPTH_IS_CRITICAL, // Force critical depth based on the discharge
+	kValueIgnored = BOUNDARY_DEPTH_IGNORE								// 2nd column can be ignored
 }; }
 
 namespace dischargeValues { enum dischargeValues {
-	kValueTotal						= BOUNDARY_DEFINED_FLOWX | BOUNDARY_DEFINED_FLOWY | BOUNDARY_DEFINEDAS_DISCHARGE,	// Value represents the total discharge through the boundary
-	kValuePerCell					= BOUNDARY_DEFINED_FLOWX | BOUNDARY_DEFINED_FLOWY | BOUNDARY_DEFINEDAS_DISCHARGE,	// Value represents the discharge per cell through the boundary
-	kValueVelocity					= BOUNDARY_DEFINED_FLOWX | BOUNDARY_DEFINED_FLOWY | BOUNDARY_DEFINEDAS_VELOCITY,	// Value represents a velocity through the boundary
-	kValueSurging					= BOUNDARY_DEFINED_FLOWX | BOUNDARY_DEFINED_FLOWY | BOUNDARY_DEFINEDAS_FLOWSURGE, // Value represents a depth increase in volumetric rate terms (e.g. manhole surge)
-	kValueIgnored					= BOUNDARY_UNDEFINED_FLOWX | BOUNDARY_UNDEFINED_FLOWY
+	kValueTotal = BOUNDARY_DISCHARGE_IS_DISCHARGE,	// Value represents the total discharge through the boundary
+	kValuePerCell = BOUNDARY_DISCHARGE_IS_DISCHARGE,	// Value represents the discharge per cell through the boundary
+	kValueVelocity = BOUNDARY_DISCHARGE_IS_VELOCITY,	// Value represents a velocity through the boundary
+	kValueSurging = BOUNDARY_DISCHARGE_IS_VOLUME, // Value represents a depth increase in volumetric rate terms (e.g. manhole surge)
+	kValueIgnored = BOUNDARY_DISCHARGE_IGNORE
 }; }
 
 namespace griddedValues { enum griddedValues {

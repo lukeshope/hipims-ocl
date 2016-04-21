@@ -52,15 +52,14 @@ __kernel void bdy_Cell (
 	__private cl_double4			pTSInterp = pTSBase + (pTSNext - pTSBase) * ( fmod(dLocalTime, pConfig.TimeseriesInterval ) / pConfig.TimeseriesInterval);
 
 	// Apply depth/fsl
-	if ((pConfig.Definition & BOUNDARY_DEFINED_LEVEL) != 0 &&
-		(pConfig.Definition & BOUNDARY_DEFINEDAS_DEPTH) != 0)
+	if (pConfig.DefinitionDepth == BOUNDARY_DEPTH_IS_DEPTH)
 	{
 		#ifdef DEBUG_OUTPUT
 		printf("Depth is fixed.\n");
 		#endif
 		pCellData.x = dCellBed + pTSInterp.y;			// Depth is fixed
 	}
-	else if ((pConfig.Definition & BOUNDARY_DEFINED_LEVEL) != 0)
+	else if (pConfig.DefinitionDepth == BOUNDARY_DEPTH_IS_FSL)
 	{
 		#ifdef DEBUG_OUTPUT
 		printf("FSL is fixed.\n");
@@ -73,8 +72,8 @@ __kernel void bdy_Cell (
 		printf("Depth and FSL are free.\n");
 		#endif
 		if (fabs(pTSInterp.z) > VERY_SMALL ||
-			fabs(pTSInterp.w) > VERY_SMALL /* ||
-			(pConfig.Definition & (cl_ulong)(BOUNDARY_DEFINEDAS_FLOWSURGE)) == (cl_ulong)(BOUNDARY_DEFINEDAS_FLOWSURGE) */)
+			fabs(pTSInterp.w) > VERY_SMALL ||
+			pConfig.DefinitionDischarge == BOUNDARY_DISCHARGE_IS_VOLUME)
 		{
 			// Calculate a suitable depth based
 			__private cl_double dDepth = (fabs(pTSInterp.z) * dLocalTimestep) / DOMAIN_DELTAY + (fabs(pTSInterp.w) * dLocalTimestep) / DOMAIN_DELTAX;
@@ -83,15 +82,15 @@ __kernel void bdy_Cell (
 
 			// Not going to impose a direction if we're trying to represent
 			// a surging discharge rate (e.g. manhole surge)
-			//if ((pConfig.Definition & (cl_ulong)(BOUNDARY_DEFINEDAS_FLOWSURGE)) == (cl_ulong)(BOUNDARY_DEFINEDAS_FLOWSURGE))
-			//{
+			if (pConfig.DefinitionDischarge == BOUNDARY_DISCHARGE_IS_VOLUME)
+			{
 				// In the case of volume boundaries, no scaling has taken place
 				dNormalDepth = 0.0;
 				dDepth = (fabs(pTSInterp.z) * dLocalTimestep) / (DOMAIN_DELTAX * DOMAIN_DELTAY);
 				dCriticalDepth = 0.0;
 				pTSInterp.z = 0.0;
 				pTSInterp.w = 0.0;
-			//}
+			}
 			
 			pCellData.x = fmax(dCellBed + dCriticalDepth, pCellData.x + dDepth);
 			
@@ -101,22 +100,22 @@ __kernel void bdy_Cell (
 		}
 	}
 
-	if ((pConfig.Definition & BOUNDARY_DEFINED_FLOWX) != 0 &&
-		(pConfig.Definition & BOUNDARY_DEFINEDAS_DISCHARGE) != 0)
+	if (pConfig.DefinitionDischarge == BOUNDARY_DISCHARGE_IS_DISCHARGE)
 	{
 		// Apply flow in X direction
 		pCellData.z = pTSInterp.z;
-	} else if ((pConfig.Definition & BOUNDARY_DEFINED_FLOWX) != 0) {
+	}
+	else if (pConfig.DefinitionDischarge == BOUNDARY_DISCHARGE_IS_VELOCITY) {
 		// Apply velocity in X direction
 		pCellData.z = pTSInterp.z * (pCellData.x - dCellBed);
 	}
 
-	if ((pConfig.Definition & BOUNDARY_DEFINED_FLOWY) != 0 &&
-		(pConfig.Definition & BOUNDARY_DEFINEDAS_DISCHARGE) != 0)
+	if (pConfig.DefinitionDischarge == BOUNDARY_DISCHARGE_IS_DISCHARGE)
 	{
 		// Apply flow in Y direction
 		pCellData.w = pTSInterp.w;
-	} else if ((pConfig.Definition & BOUNDARY_DEFINED_FLOWY) != 0) {
+	}
+	else if (pConfig.DefinitionDischarge == BOUNDARY_DISCHARGE_IS_VELOCITY) {
 		// Apply velocity in X direction
 		pCellData.w = pTSInterp.w * (pCellData.x - dCellBed);
 	}

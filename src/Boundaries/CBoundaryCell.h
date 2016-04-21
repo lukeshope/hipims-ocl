@@ -57,7 +57,8 @@ protected:
 		cl_float		TimeseriesInterval;
 		cl_float		TimeseriesLength;
 		cl_ulong		RelationCount;
-		cl_ulong		Definition;
+		cl_uint			DefinitionDepth;
+		cl_uint			DefinitionDischarge;
 	};
 	struct sConfigurationDP
 	{
@@ -65,7 +66,8 @@ protected:
 		cl_double		TimeseriesInterval;
 		cl_double		TimeseriesLength;
 		cl_ulong		RelationCount;
-		cl_ulong		Definition;
+		cl_uint			DefinitionDepth;
+		cl_uint			DefinitionDischarge;
 	};
 
 	void							setDischargeValue( unsigned char a )		{ ucDischargeValue = a; };

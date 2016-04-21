@@ -35,3 +35,7 @@ _debug*.log
 *.exe
 *.out
 *.app
+
+# Exceptions
+!tools/**/*.exe
+!tools/**/*.dll

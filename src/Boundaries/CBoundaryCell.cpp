@@ -315,7 +315,8 @@ void CBoundaryCell::prepareBoundary(
 		pConfiguration.TimeseriesEntries  = this->uiTimeseriesLength;
 		pConfiguration.TimeseriesInterval = this->dTimeseriesInterval;
 		pConfiguration.TimeseriesLength   = this->dTimeseriesLength;
-		pConfiguration.Definition		  = (cl_uint)this->ucDepthValue | (cl_uint)this->ucDischargeValue;
+		pConfiguration.DefinitionDepth	  = (cl_uint)this->ucDepthValue;
+		pConfiguration.DefinitionDischarge = (cl_uint)this->ucDischargeValue;
 		pConfiguration.RelationCount      = this->uiRelationCount;
 
 		this->pBufferConfiguration = new COCLBuffer(
@@ -360,7 +361,8 @@ void CBoundaryCell::prepareBoundary(
 		pConfiguration.TimeseriesEntries  = this->uiTimeseriesLength;
 		pConfiguration.TimeseriesInterval = this->dTimeseriesInterval;
 		pConfiguration.TimeseriesLength   = this->dTimeseriesLength;
-		pConfiguration.Definition		  = this->ucDepthValue | this->ucDischargeValue;
+		pConfiguration.DefinitionDepth = (cl_uint)this->ucDepthValue;
+		pConfiguration.DefinitionDischarge = (cl_uint)this->ucDischargeValue;
 		pConfiguration.RelationCount	  = this->uiRelationCount;
 
 		this->pBufferConfiguration = new COCLBuffer(
