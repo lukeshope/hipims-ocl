@@ -133,4 +133,4 @@ Information on the underlying numerical schemes and previous applications was pr
 * Liang Q, Smith LS (2014) [A High-Performance Integrated Hydrodynamic Modelling System for Urban Flood Inundation](/docs/papers/urban-flood-jhi.pdf), _Journal of Hydroinformatics_, 17(4):518-533.
 * Smith LS, Liang Q, Quinn PF (2015) [Towards a hydrodynamic modelling framework appropriate for applications in urban flood assessment and mitigation using heterogeneous computing](/docs/papers/carlisle-uwj.pdf), _Urban Water Journal_, 12(1):67-78.
 * Smith LS, Liang Q (2013) [Towards a generalised GPU/CPU shallow-flow modelling tool](/docs/papers/dam-break-cf.pdf), _Computers & Fluids_, 88:334-343.
-* Liang Q (2010) [Flood Simulation Using a Well-Balanced Shallow Flow Model](http://dx.doi.org/10.1061/(ASCE)HY.1943-7900.0000219), 136(9):669-675.
+* Liang Q (2010) [Flood Simulation Using a Well-Balanced Shallow Flow Model](http://dx.doi.org/10.1061/(ASCE)HY.1943-7900.0000219), Journal of Hydraulic Engineering, 136(9):669-675.
