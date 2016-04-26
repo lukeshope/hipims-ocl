@@ -1,37 +1,34 @@
+#!/usr/bin/env node
 'use strict';
-var bngTile = require('./bngTile');
 
-var testTile = new bngTile('NZ26');
-testTile.requireTile();
+var commands = require('commander');
+var domain = require('./domain');
 
-//rasterTools.someFunction();
+commands
+	.version('0.0.1')
+	.command('hipims-mb')
+	.option('-n --name <name>', 'short name for the model')
+	.option('-t --type pluvial|fluvial|tidal|combined', 'type of model to construct')
+	.option('-d --directory <dir>', 'target directory for model')
+	.option('-r --resolution <resolution>', 'grid resolution in metres')
+	.option('-dn --decompose <domains>', 'decompose to a number of domain')
+	.option('-ll --lower-left <easting,northing>', 'lower left coordinates')
+	.option('-ur --upper-right <easting,northing>', 'upper right coordinates')
+	.option('-ri --rainfall-intensity <mm/hr>', 'rainfall intensity', parseFloat)
+	.option('-rd --rainfall-duration <minutes>', 'rainfall duration', parseFloat)
+	.option('-d --drainage <mm/hr>', 'drainage network capacity', parseFloat)
+	.parse(process.argv);
 
-// TODO: Wait for each module to spin up...
+// TODO: Add extent class
+// TODO: Identify required BNG tiles from the extent
+var modelExtent = null;
+var modelDomain = new domain(modelExtent);
 
-// TODO: Process command line arguments
-// ...
-// TODO: Download files from the EA Geomatics Group
-/*
-downloadTools.pushToQueue(
-	'http://grough.co.uk/special/autothumb/lib/img/editorial/NIGOR-Spix-open-1024x682.jpg/272/125/top',
-	'test.jpg',
-	null
-);
-downloadTools.pushToQueue(
-	'http://www.grough.co.uk/special/autothumb/lib/img/editorial/withens14-dusk-1024x682.jpg/272/125',
-	'test2.jpg',
-	null
-);
-*/
-
-// TODO: Extract ZIP files
-//zipTools.extract('hipims-win32-master.zip', () => {console.log('Callback for ZIP');});
-
-// TODO: Merge the files into a single raster
-// ...
 // TODO: Cookie cut files using shapefile for buildings
 // ...
+
 // TODO: Rearrange and store files in the right directories
 // ...
+
 // TODO: Write out the model XML config file
 // ...

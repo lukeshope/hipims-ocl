@@ -24,6 +24,7 @@ var bngTile = function(tileName) {
 	this.tileRasterised = false;
 	this.tileRequired = false;
 	this.tilePrepared = false;
+	this.tileCallback = null;
 	this.assessState();
 };
 
@@ -31,7 +32,7 @@ bngTile.prototype.assessState = function () {
 	var assessmentTotal = 3;
 	var assessmentCount = 0;
 	glob(downloadTools.getDirectoryPath() + this.tileName + '_D?M_*.zip', (err, files) => {
-		this.tileDownloaded = true; assessmentCount++; assessmentNext()
+		this.tileDownloaded = files.length >= 2; assessmentCount++; assessmentNext()
 	});
 	this.assessPaths([
 		downloadTools.getDirectoryPath() + this.tileName + '_DTM/',
@@ -72,8 +73,9 @@ bngTile.prototype.assessPaths = function (paths, cb) {
 	});
 };
 
-bngTile.prototype.requireTile = function () {
+bngTile.prototype.requireTile = function (cb) {
 	this.tileRequired = true;
+	this.tileCallback = cb;
 	this.prepareForUse();
 };
 
@@ -88,6 +90,9 @@ bngTile.prototype.prepareForUse = function () {
 		this.rasterise();
 	} else {
 		this.tilePrepared = true;
+		if (this.tileCallback) {
+			this.tileCallback(this.tileName);
+		}
 	}
 };
 
@@ -172,7 +177,29 @@ bngTile.prototype.extract = function () {
 
 bngTile.prototype.rasterise = function () {
 	console.log('Attempting to rasterise tile ' + this.tileName + '...');
-	rasterTools.mergeRasters();
+	
+	glob(downloadTools.getDirectoryPath() + this.tileName + '_D?M', (err, directories) => {
+		this.tileRasteriseDirectoriesTotal = directories.length;
+		this.tileRasteriseDirectoriesFinished = 0;
+		
+		directories.forEach((dir) => {
+			glob(dir + '/*.asc', (err, files) => {
+				rasterTools.mergeToVRT(
+					downloadTools.getDirectoryPath() + path.basename(dir) + '.vrt',
+					files,
+					(err) => { 
+						console.log('Finished building ' + path.basename(dir) + ' VRT.'); 
+						this.tileRasteriseDirectoriesFinished++;
+						
+						if (this.tileRasteriseDirectoriesFinished >= this.tileRasteriseDirectoriesTotal) {
+							this.tileRasterised = true;
+							this.prepareForUse();
+						}
+					}
+				);
+			});
+		});
+	});
 };
 
 module.exports = bngTile;

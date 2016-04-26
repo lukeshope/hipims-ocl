@@ -7,6 +7,9 @@
 		"name": "Qiuhua Liang",
 		"email": "qiuhua.liang@ncl.ac.uk"
 	}],
+	"bin": {
+		"hipims-mb": "./main.js"
+	},
 	"scripts": {
 		"start": "node main.js"
 	},
@@ -26,7 +29,8 @@
 	"dependencies": {
 		"gdal": "*",
 		"unzip": "*",
-		"glob": "*"
+		"glob": "*",
+		"commander": "*"
 	},
 	"devDependencies": {
 		
