@@ -6,7 +6,8 @@ var downloadTools = require('./download');
 
 var domain = function(extent) {
 	// TODO: Work out which tiles are required for the given extent
-	this.tiles = ['NZ26', 'NZ25'];
+	this.extent = extent;
+	this.tiles = extent.getBngTileNames();
 	this.domainPrepare();
 };
 
@@ -16,6 +17,7 @@ domain.prototype.domainPrepare = function () {
 	this.bngTiles = {};
 	this.bngTileCount = this.tiles.length;
 	this.bngTileDone = 0;
+	this.clipDone = false;
 	
 	this.tiles.forEach((tileName) => {
 		this.bngTiles[tileName] = new bngTile(tileName);
@@ -65,7 +67,25 @@ domain.prototype.domainPrepareFinished = function (tileName) {
 
 domain.prototype.domainClip = function () {
 	console.log('--> Preparing to clip the domain...');
-	// TODO: Clip here :-)
+	
+	rasterTools.clipRaster(
+		downloadTools.getDirectoryPath() + 'DOMAIN_DTM.vrt',
+		downloadTools.getDirectoryPath() + 'CLIP_DTM.img',
+		'HFA',
+		this.extent,
+		(success) => {
+			if (success) {
+				this.clipDone = true;
+				this.domainClipFinished();
+			} else {
+				console.log('An error occured clipping the domain.');
+			}
+		}
+	);
+}
+
+domain.prototype.domainClipFinished = function () {
+	console.log('Domain clipping is now complete.');
 }
 
 module.exports = domain;

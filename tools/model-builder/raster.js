@@ -146,6 +146,111 @@ rasterTools.prototype.getVRTBandForFile = function (filename, baseDir, data, dat
 		</SimpleSource>\r\n';
 }
 
+rasterTools.prototype.clipRaster = function (sourceFile, targetFile, format, extent, cb) {
+	let sourceDataset = gdal.open(sourceFile);
+	
+	if (!sourceDataset) {
+		console.log('Could not open "' + fn + '" to source clip data.');
+		return false;
+	}
+	
+	// Fetch everything we need to know about the source 
+	// except the data itself.
+	let sourceSizeX = sourceDataset.rasterSize.x;
+	let sourceSizeY = sourceDataset.rasterSize.y;
+	let sourceTransform = sourceDataset.geoTransform;
+	let sourceBandCount = sourceDataset.bands.count();
+	let sourceResolution = Math.abs(sourceTransform[5]);
+	
+	let sourceBaseX = sourceTransform[0];
+	let sourceBaseY = sourceTransform[5] < 0 ? sourceTransform[3] - sourceSizeY * Math.abs(sourceTransform[5]) : sourceTransform[3];
+	let sourceCornerX = sourceTransform[0] + sourceSizeX * sourceTransform[1];
+	let sourceCornerY = sourceTransform[5] > 0 ? sourceTransform[3] + sourceSizeY * Math.abs(sourceTransform[5]) : sourceTransform[3];
+
+	let clipSourceMinX = Math.min(sourceSizeX, Math.max(0, Math.floor((extent.lowerLeftX - sourceBaseX)/sourceResolution)));
+	let clipSourceMinY = Math.min(sourceSizeY, Math.max(0, Math.floor((extent.lowerLeftY - sourceBaseY)/sourceResolution)));
+	let clipSourceMaxX = Math.min(sourceSizeX, Math.max(0, Math.ceil((extent.upperRightX - sourceBaseX)/sourceResolution)));
+	let clipSourceMaxY = Math.min(sourceSizeY, Math.max(0, Math.ceil((extent.upperRightY - sourceBaseY)/sourceResolution)));
+
+	const dataType = 'Float32';
+	const noDataValue = -9999;
+	const windowSize = 32;
+	const targetBaseDir = path.dirname(targetFile);
+	const targetDriver = gdal.drivers.get(format);
+	const targetSizeX = Math.abs(clipSourceMaxX - clipSourceMinX);
+	const targetSizeY = Math.abs(clipSourceMaxY - clipSourceMinY);
+	
+	if (!targetDriver) {
+		console.log('Could not obtain driver "' + format + '" to create raster file.');
+		return false;
+	}
+	
+	let targetDataset = targetDriver.create(
+		targetFile,
+		targetSizeX,
+		targetSizeY,
+		1,
+		dataType
+	);
+	
+	if (!targetDataset) {
+		console.log('Could not create dataset for clip.');
+		if (cb) cb(false);
+		return false;
+	}
+	
+	// Set spatial reference info
+	let targetTransform = [
+		Math.floor(extent.lowerLeftX / sourceResolution) * sourceResolution,
+		sourceResolution,
+		0.0,
+		Math.floor(( sourceTransform[5] > 0.0 ? extent.lowerLeftY : extent.upperRightY ) / sourceResolution) * sourceResolution,
+		0.0,
+		sourceTransform[5]
+	];
+	targetDataset.geoTransform = targetTransform;
+	
+	// Copy data
+	let sourceBand = sourceDataset.bands.get(1);
+	let targetBand = targetDataset.bands.get(1);
+	
+	if (!sourceBand) {
+		console.log('Could not get source band for clip.');
+		if (cb) cb(false);
+		return false;
+	}
+	if (!targetBand) {
+		console.log('Could not get target band for clip.');
+		if (cb) cb(false);
+		return false;
+	}
+	
+	let sourcePixels = sourceBand.pixels;
+	let targetPixels = targetBand.pixels;
+	
+	targetBand.noDataValue = noDataValue;
+	
+	for (let e = 0; e < Math.ceil(targetSizeX / windowSize) * windowSize; e += windowSize ) {
+		for (let n = 0; n < Math.ceil(targetSizeY / windowSize) * windowSize; n += windowSize ) {
+			let maxE = Math.min(targetSizeX, e + windowSize);
+			let maxN = Math.min(targetSizeY, n + windowSize);
+			
+			let sourceBuffer = new Float32Array(new ArrayBuffer((maxE - e) * (maxN - n) * 4));
+			
+			sourcePixels.read(clipSourceMinX + e, sourceSizeY - (clipSourceMinY + n) - (maxN - n), maxE - e, maxN - n, sourceBuffer);
+			targetPixels.write(e, targetSizeY - n - (maxN - n), maxE - e, maxN - n, sourceBuffer);
+		}
+	}
+	
+	targetDataset.flush();
+	targetDataset.close();
+	
+	sourceDataset.close();
+	
+	if (cb) cb(true);
+	return true;
+};
+
 var thisInstance = null;
 module.exports = function () {
 	if ( !thisInstance ) {
