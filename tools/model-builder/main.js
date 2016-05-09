@@ -55,7 +55,7 @@ program
 	.option('-s, --source [pluvial|fluvial|tidal|combined]', 'type of model to construct')
 	.option('-d, --directory <dir>', 'target directory for model')
 	.option('-r, --resolution <resolution>', 'grid resolution in metres')
-	.option('-dn, --decompose <domains>', 'decompose to a number of domain')
+	.option('-dn, --decompose <domains>', 'decompose for multi-device')
 	.option('-ll, --lower-left <easting,northing>', 'lower left coordinates')
 	.option('-ur, --upper-right <easting,northing>', 'upper right coordinates')
 	.option('-ri, --rainfall-intensity <mm/hr>', 'rainfall intensity', parseFloat)
