@@ -17,10 +17,10 @@ var downloadTools = function() {
 	// Need a download directory
 	fs.access(downloadDir, fs.R_OK | fs.W_OK, (err) => {
 		if (err) {
-			console.log('No download directory exists -- need to make one...');
+			console.log('    No download directory exists -- need to make one...');
 			this.createDirectory();
 		} else {
-			console.log('Download directory found.');
+			console.log('    Download directory found.');
 			this.downloadReady = true;
 			this.processQueue();
 		}
@@ -29,7 +29,7 @@ var downloadTools = function() {
 
 downloadTools.prototype.createDirectory = function () {
 	fs.mkdir(downloadDir, (err) => {
-		console.log((!err ? 'Made' : 'Could not make') + ' downloads directory.');
+		console.log('    ' + (!err ? 'Made' : 'Could not make') + ' downloads directory.');
 		this.downloadReady = !err;
 		this.processQueue();
 	});
@@ -57,19 +57,19 @@ downloadTools.prototype.processQueue = function() {
 downloadTools.prototype.fetchToFile = function (queueItem) {
 	const targetPath = downloadDir + '/' + queueItem.filename;
 	var file = fs.createWriteStream(targetPath);
-	console.log('Downloading ' + queueItem.filename + '...');
+	console.log('    Downloading ' + queueItem.filename + '...');
 
 	var request = http.get(queueItem.url, (response) => {
 		response.pipe(file);
 		file.on('finish', () => {
 			file.close();
-			console.log('Finished downloading ' + queueItem.filename + '.');
+			console.log('    Finished downloading ' + queueItem.filename + '.');
 			if (queueItem.cb) queueItem.cb(null, queueItem.filename);
 			this.processQueue();
 		});
 	}).on('error', (err) => {
 		fs.unlink(targetPath);
-		console.log('An error occured downloading ' + queueItem.filename + ' -- file deleted.');
+		console.log('    An error occured downloading ' + queueItem.filename + ' -- file deleted.');
 		if (cb) cb(err, filename);
 	});
 };

@@ -46,13 +46,13 @@ bngTile.prototype.assessState = function () {
 	var assessmentNext = () => {
 		if (assessmentCount < assessmentTotal) return;
 		if (!this.tileDownloaded) {
-			console.log('Tile ' + this.tileName + ' required -- not yet downloaded.');
+			console.log('    Tile ' + this.tileName + ' required -- not yet downloaded.');
 		} else if (!this.tileExtracted) {
-			console.log('Tile ' + this.tileName + ' required -- not yet extracted.');
+			console.log('    Tile ' + this.tileName + ' required -- not yet extracted.');
 		} else if (!this.tileRasterised) {
-			console.log('Tile ' + this.tileName + ' required -- not yet merged.');
+			console.log('    Tile ' + this.tileName + ' required -- not yet merged.');
 		} else {
-			console.log('Tile ' + this.tileName + ' required -- already prepared.');
+			console.log('    Tile ' + this.tileName + ' required -- already prepared.');
 		}
 		this.tileAssessed = true;
 		this.prepareForUse();
@@ -97,15 +97,15 @@ bngTile.prototype.prepareForUse = function () {
 };
 
 bngTile.prototype.download = function () {
-	console.log('Attempting to download tile ' + this.tileName + '...');
+	console.log('    Attempting to download tile ' + this.tileName + '...');
 	
 	request(apiEndpointEA + this.tileName, (e, r, b) => {
 		if (r.statusCode !== 200) {
-			console.log('Request returned status code ' + r.statusCode + '.');
+			console.log('    Request returned status code ' + r.statusCode + '.');
 			return;
 		}
 		if (e) {
-			console.log('Request returned an error: ' + e);
+			console.log('    Request returned an error: ' + e);
 			return;
 		}
 		this.downloadStartFiles(b, 'EA');
@@ -118,11 +118,11 @@ bngTile.prototype.downloadStartFiles = function (jsonText, source) {
 	this.tileDownloadFilesFinished = 0;
 	
 	if (source === 'EA') {
-		console.log('Identified ' + returnedDatasets.length + ' LiDAR datasets for tile ' + this.tileName + '.');
+		console.log('    Identified ' + returnedDatasets.length + ' LiDAR datasets for tile ' + this.tileName + '.');
 		returnedDatasets.forEach((dataset) => {
 			if (dataset.fileName.match(apiMatchEAFilenameDTM) !== null || dataset.fileName.match(apiMatchEAFilenameDEM) !== null) {
 				this.tileDownloadFilesTotal++;
-				console.log('Dataset ' + dataset.guid + ' provides required data.');
+				console.log('    Dataset ' + dataset.guid + ' provides required data.');
 				downloadTools.pushToQueue(
 					apiDownloadEA + dataset.guid,
 					this.tileName + '_' + (dataset.fileName.match(apiMatchEAFilenameDTM) !== null ? 'DTM' : 'DEM') + '_' + source + '.zip',
@@ -133,13 +133,13 @@ bngTile.prototype.downloadStartFiles = function (jsonText, source) {
 	}
 	
 	if (this.tileDownloadFilesTotal === 0) {
-		console.log('Required LiDAR files could not be found.');
+		console.log('    Required LiDAR files could not be found.');
 	}
 };
 
 bngTile.prototype.downloadEndFile = function (err, filename) {
 	if (err !== null) {
-		console.log('An error occured downloading a file for tile ' + this.tileName + '.');
+		console.log('    An error occured downloading a file for tile ' + this.tileName + '.');
 		return;
 	}
 	this.tileDownloadFilesFinished++;
@@ -149,13 +149,13 @@ bngTile.prototype.downloadEndFile = function (err, filename) {
 };
 
 bngTile.prototype.downloadFinished = function () {
-	console.log('All downloads have finished for tile ' + this.tileName + '.');
+	console.log('    All downloads have finished for tile ' + this.tileName + '.');
 	this.tileDownloaded = true;
 	this.prepareForUse();
 };
 
 bngTile.prototype.extract = function () {
-	console.log('Attempting to extract tile ' + this.tileName + '...');
+	console.log('    Attempting to extract tile ' + this.tileName + '...');
 	
 	glob(downloadTools.getDirectoryPath() + this.tileName + '_D?M_*.zip', (err, files) => {
 		this.tileExtractFilesTotal = files.length;
@@ -176,7 +176,7 @@ bngTile.prototype.extract = function () {
 };
 
 bngTile.prototype.rasterise = function () {
-	console.log('Attempting to rasterise tile ' + this.tileName + '...');
+	console.log('    Attempting to rasterise tile ' + this.tileName + '...');
 	
 	glob(downloadTools.getDirectoryPath() + this.tileName + '_D?M', (err, directories) => {
 		this.tileRasteriseDirectoriesTotal = directories.length;
@@ -188,7 +188,7 @@ bngTile.prototype.rasterise = function () {
 					downloadTools.getDirectoryPath() + path.basename(dir) + '.vrt',
 					files,
 					(err) => { 
-						console.log('Finished building ' + path.basename(dir) + ' VRT.'); 
+						console.log('    Finished building ' + path.basename(dir) + ' VRT.'); 
 						this.tileRasteriseDirectoriesFinished++;
 						
 						if (this.tileRasteriseDirectoriesFinished >= this.tileRasteriseDirectoriesTotal) {

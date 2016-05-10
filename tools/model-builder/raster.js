@@ -24,7 +24,7 @@ rasterTools.prototype.mergeToVRT = function (targetVRT, sourceFiles, cb) {
 		var dataset = gdal.open(fn);
 		
 		if (!dataset) {
-			console.log('Could not open "' + fn + '" to add to VRT dataset.');
+			console.log('    Could not open "' + fn + '" to add to VRT dataset.');
 			return '';
 		}
 		
@@ -73,7 +73,7 @@ rasterTools.prototype.mergeToVRT = function (targetVRT, sourceFiles, cb) {
 			setBaseNorth = fileData[fn].offsetBaseNorth;
 		} else {
 			if (setBaseNorth != fileData[fn].offsetBaseNorth) {
-				console.log('Different Y resolutions found -- tool does not support this yet.');
+				console.log('    Different Y resolutions found -- tool does not support this yet.');
 			}
 		}
 	});
@@ -84,9 +84,9 @@ rasterTools.prototype.mergeToVRT = function (targetVRT, sourceFiles, cb) {
 		setMaxY === -Infinity ||
 		setBaseNorth === null ||
 		setResolution === Infinity) {
-		console.log('Could not compute maximum dimensions for the merged raster.');
+		console.log('    Could not compute maximum dimensions for the merged raster.');
 	} else {
-		console.log('VRT stretches over extent (' + setMinX + ', ' + setMinY + ') to (' + setMaxX + ', ' + setMaxY + ').');
+		console.log('    VRT stretches over extent (' + setMinX + ', ' + setMinY + ') to (' + setMaxX + ', ' + setMaxY + ').');
 	}
 	
 	// Calculate relative positions for each dataset
@@ -122,7 +122,7 @@ rasterTools.prototype.mergeToVRT = function (targetVRT, sourceFiles, cb) {
 		fileCount++;
 		
 		if (fileCount >= fileTotal) {
-			console.log('Writing to ' + targetVRT + '...');
+			console.log('    Writing to ' + targetVRT + '...');
 			fs.writeFile(
 				targetVRT,
 				vrtHeader + '\r\n' + vrtBody + '\r\n' + vrtFooter,
@@ -150,7 +150,7 @@ rasterTools.prototype.clipRaster = function (sourceFile, targetFile, format, ext
 	let sourceDataset = gdal.open(sourceFile);
 	
 	if (!sourceDataset) {
-		console.log('Could not open "' + fn + '" to source clip data.');
+		console.log('    Could not open "' + fn + '" to source clip data.');
 		return false;
 	}
 	
@@ -180,8 +180,10 @@ rasterTools.prototype.clipRaster = function (sourceFile, targetFile, format, ext
 	const targetSizeX = Math.abs(clipSourceMaxX - clipSourceMinX);
 	const targetSizeY = Math.abs(clipSourceMaxY - clipSourceMinY);
 	
+	console.log('    Target file will be ' + targetSizeX + 'x' + targetSizeY + ' (' + (targetSizeX * targetSizeY) + ' cells)');
+	
 	if (!targetDriver) {
-		console.log('Could not obtain driver "' + format + '" to create raster file.');
+		console.log('    Could not obtain driver "' + format + '" to create raster file.');
 		return false;
 	}
 	
@@ -194,7 +196,7 @@ rasterTools.prototype.clipRaster = function (sourceFile, targetFile, format, ext
 	);
 	
 	if (!targetDataset) {
-		console.log('Could not create dataset for clip.');
+		console.log('    Could not create dataset for clip.');
 		if (cb) cb(false);
 		return false;
 	}
@@ -215,12 +217,12 @@ rasterTools.prototype.clipRaster = function (sourceFile, targetFile, format, ext
 	let targetBand = targetDataset.bands.get(1);
 	
 	if (!sourceBand) {
-		console.log('Could not get source band for clip.');
+		console.log('    Could not get source band for clip.');
 		if (cb) cb(false);
 		return false;
 	}
 	if (!targetBand) {
-		console.log('Could not get target band for clip.');
+		console.log('    Could not get target band for clip.');
 		if (cb) cb(false);
 		return false;
 	}

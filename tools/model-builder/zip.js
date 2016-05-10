@@ -12,14 +12,14 @@ zipTools.prototype.extract = function (archiveName, cb, targetDir) {
 	if ( targetDir === undefined ) {
 		targetDir = downloadTools.getDirectoryPath() + archiveName.replace(/_[A-Z]+\..+$/, '');
 	}
-	console.log('Extracting ' + archiveName + ' to directory...');
+	console.log('    Extracting ' + archiveName + ' to directory...');
 	fs.createReadStream(downloadTools.getDirectoryPath() + archiveName)
 	  .pipe(
 		unzip.Extract({ 
 			path: targetDir
 		})
 		.on('close', () => {
-			console.log('Finished extracting ' + archiveName + '.');
+			console.log('    Finished extracting ' + archiveName + '.');
 			if (cb) cb();
 		})
 	  );
