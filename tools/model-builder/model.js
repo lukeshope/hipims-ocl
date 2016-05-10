@@ -152,10 +152,6 @@ model.prototype.getXMLFile = function() {
 						<parameter name="groupSize" value="32x8" />\n\
 					</scheme>\n\
 					<boundaryConditions sourceDir="boundaries/">\n\
-						<domainEdge edge="north" treatment="closed" />\n\
-						<domainEdge edge="south" treatment="closed" />\n\
-						<domainEdge edge="east" treatment="closed" />\n\
-						<domainEdge edge="west" treatment="closed" />\n\
 						<timeseries type="atmospheric" name="Rainfall" value="rain-intensity" source="rainfall.csv" />\n\
 						<timeseries type="atmospheric" name="Drainage" value="loss-rate" source="drainage.csv" />\n\
 					</boundaryConditions>\n\

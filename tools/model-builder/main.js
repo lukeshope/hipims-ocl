@@ -101,7 +101,8 @@ function getInfo (commands) {
 		name: commands.name || 'Undefined',
 		source: modelSource,
 		targetDirectory: commands.directory,
-		duration: getSeconds(commands.time)
+		duration: getSeconds(commands.time),
+		outputFrequency: getSeconds(commands.outputFrequency)
 	};
 }
 
@@ -164,6 +165,7 @@ program
 	.option('-d, --directory <dir>', 'target directory for model')
 	.option('-r, --resolution <resolution>', 'grid resolution in metres')
 	.option('-t, --time <duration>', 'duration of simulation')
+	.option('-of, --output-frequency <frequency>', 'raster output frequency')
 	.option('-dn, --decompose <domains>', 'decompose for multi-device')
 	.option('-ll, --lower-left <easting,northing>', 'lower left coordinates')
 	.option('-ur, --upper-right <easting,northing>', 'upper right coordinates')

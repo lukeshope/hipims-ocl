@@ -70,7 +70,7 @@ domain.prototype.domainClip = function () {
 	console.log('--> Preparing to clip the domain...');
 	
 	rasterTools.clipRaster(
-		downloadTools.getDirectoryPath() + 'DOMAIN_DTM.vrt',
+		downloadTools.getDirectoryPath() + 'DOMAIN_DEM.vrt',
 		downloadTools.getDirectoryPath() + 'CLIP_DTM.img',
 		'HFA',
 		this.extent,
