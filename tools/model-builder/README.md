@@ -76,7 +76,7 @@ With a reasonably modern GPU in your system, you can expect the simulation to ta
 
 This is a rewrite of a tool used internally at Newcastle University, which built models using data from OS MasterMap, Met Office radar data, and Environment Agency LiDAR. 
 
-This was built upon the ArcGIS engine using ArcPy scripts. When complete, this version of the model builder will only use open data sources (e.g. OS OpenMap Local), and open libraries for manipulating data (e.g. GDAL).
+The original tool was built upon the ArcGIS engine using ArcPy scripts. When complete, this version of the model builder will only use open data sources (e.g. OS OpenMap Local), and open libraries for manipulating data (e.g. GDAL).
 
 Functions to clean topography will be added, such as to remove bridges and trees using data in vector datasets. The modelling software itself will soon be able to simulate flows at different levels, such as flooding in a subway while also simulating the flow of water on the road above.
 
