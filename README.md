@@ -1,6 +1,15 @@
 # HiPIMS OpenCL
 The **high-performance integrated modelling system**, for hydraulic and hydrological simulations (HiPIMS), is a suite of tools designed to run on a range of modern computing platforms including CPUs, GPUs and distributed systems (MPI).
 
+In short, this software simulates river, tidal and pluvial (direct rainfall) flooding over large areas such as a city or region. It can take rainfall or river levels etc. as input, and produce raster files of depth and velocity at different times. If you're lucky enough to have a supercomputer then this software will scale to take advantage of all the hardware you have.
+
+## Associated tools
+
+You might want to look at these.
+* **Model builder** to automatically download Environment Agency open data, and create a flood model you can throw straight at this software. Currently limited to pluvial flooding only. [More details are here...](https://github.com/lukessmith/hipims-ocl/tree/master/tools/model-builder)
+
+## Background
+
 This software was created for use in academic research. It is now licensed under the GNU General Public Licence (GPL) allowing you to use the code and further develop it. We stress that is trivial to use any hydraulic modelling software to create a model that is in no way representative of the real world, and that you should validate any models against real-world observations.
 
 * Three **numerical schemes** intended for different purposes
