@@ -9,6 +9,7 @@ var model = function(definition, extent, boundaries) {
 	this.name = definition.name;
 	this.duration = definition.duration;
 	this.targetDirectory = definition.targetDirectory;
+	this.domainType = definition.domainType;
 	this.extent = extent;
 	this.source = definition.source;
 	this.outputFrequency = definition.outputFrequency || this.duration;
@@ -17,8 +18,17 @@ var model = function(definition, extent, boundaries) {
 	this.boundaries = boundaries;
 };
 
+model.prototype.getName = function () {
+	return this.name;
+}
+
+model.prototype.getExtent = function () {
+	return this.extent;
+}
+
 model.prototype.prepareModel = function(cb) {
-	this.domain = new domain(this.extent, cb);
+	var domainClass = domain.getDomainForType(this.domainType);
+	this.domain = new domainClass(this, cb);
 };
 
 model.prototype.outputModel = function() {
@@ -67,9 +77,16 @@ model.prototype.outputModelFiles = function() {
 };
 
 model.prototype.outputModelTopography = function() {
+	var sourceFile = this.domain.getPathTopography();
 	console.log('    Attempting to copy topography files.');
+	
+	if (!sourceFile) {
+		console.log('    No topography file available.');
+		return false;
+	}
+	
 	fs.copyFile(
-		downloadTools.getDirectoryPath() + 'CLIP_DTM.img',
+		sourceFile,
 		this.targetDirectory + '/topography/MODEL_TOPOGRAPHY.img',
 		(err) => {
 			if (!err) {

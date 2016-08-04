@@ -7,6 +7,51 @@ var boundaries = function(definition) {
 };
 
 boundaries.prototype.writeFiles = function(duration, directory, cb) {
+	var writeRequirements = [];
+	var writeSatisfied = 0;
+	var writeComplete = function (err) {
+		writeSatisfied++;
+		if (err) {
+			cb(err);
+		} else {
+			if (!writeRequirements.length) {
+				cb(false);
+			} else {
+				(writeRequirements.shift())();
+			}
+		}
+	};
+	
+	if (this.boundaryDefinition.rainfallDuration) {
+		writeRequirements.push(this.writeFilesRainfall.bind(this, duration, directory, writeComplete));
+	}
+	
+	if (this.boundaryDefinition.drainageRate) {
+		writeRequirements.push(this.writeFilesDrainage.bind(this, duration, directory, writeComplete));
+	}
+	
+	writeComplete(false);
+}
+
+boundaries.prototype.writeFilesRainfall = function(duration, directory, cb) {
+	console.log('    Attempting to write rainfall intensity boundary.');
+	fs.writeFile(
+		directory + '/rainfall.csv',
+		this.getRainfall(duration),
+		cb
+	);
+}
+
+boundaries.prototype.writeFilesDrainage = function(duration, directory, cb) {
+	console.log('    Attempting to write drainage boundary.');
+	fs.writeFile(
+		directory + '/drainage.csv',
+		this.getDrainage(duration),
+		cb
+	);
+}
+
+boundaries.prototype.writeFilesPluvial = function(duration, directory, cb) {
 	let fileCount = 2; 
 	let fileFinished = 0;
 	let fileComplete = function(err) {

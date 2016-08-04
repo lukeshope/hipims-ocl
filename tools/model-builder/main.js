@@ -81,14 +81,36 @@ function getInfo (commands) {
 	if (!commands.directory) return false;
 	
 	var modelSource = commands.source.toString().toLowerCase();
+	var modelDomainType;
+	var modelResolution = parseFloat(commands.resolution);
 	
-	if (modelSource !== 'pluvial') {
-		console.log('Sorry -- only pluvial models are currently supported by model builder.');
+	switch (modelSource) {
+		case 'pluvial':
+			modelDomainType = 'world';
+		break;
+		case 'analytical':
+			modelDomainType = 'imaginary';
+		break;
+		case 'laboratory':
+			modelDomainType = 'laboratory';
+		break;
+		default:
+			console.log('Sorry -- only pluvial models are currently supported by model builder.');
+			return false;
+		break;
+	}
+	
+	if (commands.resolution !== undefined && modelDomainType === 'world') {
+		console.log('Sorry -- resampling to a different resolution not yet supported for real world data.');
 		return false;
 	}
 	
-	if (commands.resolution !== undefined) {
-		console.log('Sorry -- resampling to a different resolution not yet supported.');
+	if (modelDomainType === 'imaginary' && (
+		modelResolution === undefined ||
+		!isFinite(modelResolution) ||
+		isNaN(modelResolution) ||
+		modelResolution <= 0)) {
+		console.log('Sorry -- domain resolution is invalid.');
 		return false;
 	}
 	
@@ -102,27 +124,54 @@ function getInfo (commands) {
 		source: modelSource,
 		targetDirectory: commands.directory,
 		duration: getSeconds(commands.time),
-		outputFrequency: getSeconds(commands.outputFrequency)
+		outputFrequency: getSeconds(commands.outputFrequency),
+		domainType: modelDomainType,
+		domainResolution: modelResolution
 	};
 }
 
-function getExtent (commands) {
-	if (!commands.lowerLeft || !commands.upperRight) {
-		console.log('You must supply a model extent.');
-		return false;
+function getExtent (modelInfo, commands) {
+	var llCoords, urCoords, width, height;
+
+	if (modelInfo.domainType === 'world') {
+		if (!commands.lowerLeft || !commands.upperRight) {
+			console.log('You must supply a model extent.');
+			return false;
+		}
+		
+		llCoords = commands.lowerLeft.split(',');
+		urCoords = commands.upperRight.split(',');
+		
+		if (llCoords.length != 2 ||
+			urCoords.length != 2 ||
+			isNaN(llCoords[0]) ||
+			isNaN(llCoords[1]) ||
+			isNaN(urCoords[0]) ||
+			isNaN(urCoords[1])) {
+			console.log('Coordinates supplied are invalid.');
+			return false;
+		}
 	}
 	
-	var llCoords = commands.lowerLeft.split(',');
-	var urCoords = commands.upperRight.split(',');
-	
-	if (llCoords.length != 2 ||
-	    urCoords.length != 2 ||
-		isNaN(llCoords[0]) ||
-		isNaN(llCoords[1]) ||
-		isNaN(urCoords[0]) ||
-		isNaN(urCoords[1])) {
-		console.log('Coordinates supplied are invalid.');
-		return false;
+	if (modelInfo.domainType === 'imaginary') {
+		if (!commands.width || !commands.height) {
+			console.log('You must supply a domain width and height.');
+			return false;
+		}
+		
+		width = parseFloat(commands.width);
+		height = parseFloat(commands.height);
+
+		if (!width ||
+			!height ||
+			isNaN(width) ||
+			isNaN(height)) {
+			console.log('Width and/or height supplied are invalid.');
+			return false;
+		}
+		
+		llCoords = [0, 0];
+		urCoords = [width, height];
 	}
 	
 	return new extent(llCoords[0], llCoords[1], urCoords[0], urCoords[1]);
@@ -142,16 +191,14 @@ function getBoundaries (modelInfo, commands) {
 			console.log('Rainfall duration invalid or not provided.');
 			return false;
 		}
-		if (drainageRate === false) {
-			console.log('Drainage rate invalid or not provided.');
-			return false;
-		}
-		
+
 		return new boundaries({
 			rainfallIntensity: rainfallIntensity,
 			rainfallDuration: rainfallDuration,
 			drainageRate: drainageRate
 		});
+	} else if (modelInfo.source === 'analytical') {
+		return new boundaries({});
 	} else {
 		console.log('Cannot prepare boundaries for this type of model.');
 		return false;
@@ -161,7 +208,7 @@ function getBoundaries (modelInfo, commands) {
 program
 	.version('0.0.1')
 	.option('-n, --name <name>', 'short name for the model')
-	.option('-s, --source [pluvial|fluvial|tidal|combined]', 'type of model to construct')
+	.option('-s, --source [pluvial|fluvial|tidal|...]', 'type of model to construct')
 	.option('-d, --directory <dir>', 'target directory for model')
 	.option('-r, --resolution <resolution>', 'grid resolution in metres')
 	.option('-t, --time <duration>', 'duration of simulation')
@@ -169,6 +216,8 @@ program
 	.option('-dn, --decompose <domains>', 'decompose for multi-device')
 	.option('-ll, --lower-left <easting,northing>', 'lower left coordinates')
 	.option('-ur, --upper-right <easting,northing>', 'upper right coordinates')
+	.option('-w, --width <size>', 'domain width')
+	.option('-h, --height <size>', 'domain height')
 	.option('-ri, --rainfall-intensity <Xmm/hr>', 'rainfall intensity')
 	.option('-rd, --rainfall-duration <Xmins>', 'rainfall duration')
 	.option('-dr, --drainage <Xmm/hr>', 'drainage rate')
@@ -177,7 +226,7 @@ program
 var modelInfo = getInfo(program);
 if (!modelInfo) triggerErrorFail('You must specify more inforation about this model.');
 
-var modelExtent = getExtent(program);
+var modelExtent = getExtent(modelInfo, program);
 if (!modelExtent) triggerErrorFail('You must specify a valid extent for the model.');
 
 var modelBoundaries = getBoundaries(modelInfo, program);
@@ -189,7 +238,6 @@ model.prepareModel( (success) => {
 		model.outputModel();
 	}
 });
-
 
 // TODO: Cookie cut files using shapefile for buildings
 // TODO: Rearrange and store files in the right directories
