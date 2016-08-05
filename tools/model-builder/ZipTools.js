@@ -2,13 +2,13 @@
 
 var fs = require('fs');
 var unzip = require('unzip');
-var downloadTools = require('./download');
+var downloadTools = require('./DownloadTools');
 
-var zipTools = function() {
+function ZipTools () {
 	// ...
 };
 
-zipTools.prototype.extract = function (archiveName, cb, targetDir) {
+ZipTools.prototype.extract = function (archiveName, cb, targetDir) {
 	if ( targetDir === undefined ) {
 		targetDir = downloadTools.getDirectoryPath() + archiveName.replace(/_[A-Z]+\..+$/, '');
 	}
@@ -28,7 +28,7 @@ zipTools.prototype.extract = function (archiveName, cb, targetDir) {
 var thisInstance = null;
 module.exports = function () {
 	if ( !thisInstance ) {
-		thisInstance = new zipTools();
+		thisInstance = new ZipTools();
 	}
 	return thisInstance;
 }();

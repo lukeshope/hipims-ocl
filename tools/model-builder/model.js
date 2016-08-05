@@ -1,37 +1,44 @@
 'use strict';
 
+const defaultResolution = 2.0;
+
 const fs = require('fs');
 const path = require('path');
-const domain = require('./domain');
-const downloadTools = require('./download');
+const domain = require('./Domain');
+const downloadTools = require('./DownloadTools');
 
-var model = function(definition, extent, boundaries) {
+function Model (definition, extent, boundaries) {
 	this.name = definition.name;
 	this.duration = definition.duration;
 	this.targetDirectory = definition.targetDirectory;
 	this.domainType = definition.domainType;
+	this.domainResolution = definition.domainResolution || defaultResolution;
 	this.extent = extent;
 	this.source = definition.source;
 	this.outputFrequency = definition.outputFrequency || this.duration;
-	this.extent = extent;
 	this.domain = null;
 	this.boundaries = boundaries;
 };
 
-model.prototype.getName = function () {
+Model.prototype.getName = function () {
 	return this.name;
 }
 
-model.prototype.getExtent = function () {
+Model.prototype.getExtent = function () {
 	return this.extent;
 }
 
-model.prototype.prepareModel = function(cb) {
-	var domainClass = domain.getDomainForType(this.domainType);
+Model.prototype.getResolution = function () {
+	return this.domainResolution;
+}
+
+Model.prototype.prepareModel = function(cb) {
+	let domainClass = domain.getDomainForType(this.domainType);
+	this.extent.snapToGrid(this.domainResolution);
 	this.domain = new domainClass(this, cb);
 };
 
-model.prototype.outputModel = function() {
+Model.prototype.outputModel = function() {
 	console.log('--> Writing model files...');
 
 	this.outputReady = false;
@@ -56,7 +63,7 @@ model.prototype.outputModel = function() {
 	});
 };
 
-model.prototype.outputModelDirectories = function() {
+Model.prototype.outputModelDirectories = function() {
 	console.log('    Creating directory structure...');
 	fs.mkdirRecursive(this.targetDirectory, null, () => {
 		fs.mkdirSync(this.targetDirectory + '/topography');
@@ -68,7 +75,7 @@ model.prototype.outputModelDirectories = function() {
 	});
 };
 
-model.prototype.outputModelFiles = function() {
+Model.prototype.outputModelFiles = function() {
 	console.log('    Creating output files...');
 	
 	this.outputModelTopography();
@@ -76,7 +83,7 @@ model.prototype.outputModelFiles = function() {
 	this.outputModelBoundaries();
 };
 
-model.prototype.outputModelTopography = function() {
+Model.prototype.outputModelTopography = function() {
 	var sourceFile = this.domain.getPathTopography();
 	console.log('    Attempting to copy topography files.');
 	
@@ -99,7 +106,7 @@ model.prototype.outputModelTopography = function() {
 	);
 }
 
-model.prototype.outputModelBoundaries = function() {
+Model.prototype.outputModelBoundaries = function() {
 	console.log('    Attempting to output boundary files.');
 	this.boundaries.writeFiles(
 		this.duration,
@@ -115,7 +122,7 @@ model.prototype.outputModelBoundaries = function() {
 	)
 }
 
-model.prototype.outputModelConfiguration = function() {
+Model.prototype.outputModelConfiguration = function() {
 	console.log('    Attempting to write configuration file.');
 	fs.writeFile(
 		this.targetDirectory + '/simulation.xml',
@@ -131,7 +138,7 @@ model.prototype.outputModelConfiguration = function() {
 	);
 }
 
-model.prototype.getXMLFile = function() {
+Model.prototype.getXMLFile = function() {
 	let xml = '\
 	<?xml version="1.0"?>\n\
 	<!DOCTYPE configuration PUBLIC "HiPIMS Configuration Schema 1.1" "http://www.lukesmith.org.uk/research/namespace/hipims/1.1/"[]>\n\
@@ -233,4 +240,4 @@ fs.copyFile = function(source, target, cb) {
   }
 };
 
-module.exports = model;
+module.exports = Model;

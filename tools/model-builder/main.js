@@ -2,9 +2,9 @@
 'use strict';
 
 var program = require('commander');
-var extent = require('./extent');
-var boundaries = require('./boundaries');
-var model = require('./model');
+var Extent = require('./Extent');
+var Boundaries = require('./Boundaries');
+var Model = require('./Model');
 
 function triggerErrorFail(problem) {
 	console.log('\n--------------');
@@ -174,7 +174,7 @@ function getExtent (modelInfo, commands) {
 		urCoords = [width, height];
 	}
 	
-	return new extent(llCoords[0], llCoords[1], urCoords[0], urCoords[1]);
+	return new Extent(llCoords[0], llCoords[1], urCoords[0], urCoords[1]);
 }
 
 function getBoundaries (modelInfo, commands) {
@@ -192,13 +192,13 @@ function getBoundaries (modelInfo, commands) {
 			return false;
 		}
 
-		return new boundaries({
+		return new Boundaries({
 			rainfallIntensity: rainfallIntensity,
 			rainfallDuration: rainfallDuration,
 			drainageRate: drainageRate
 		});
 	} else if (modelInfo.source === 'analytical') {
-		return new boundaries({});
+		return new Boundaries({});
 	} else {
 		console.log('Cannot prepare boundaries for this type of model.');
 		return false;
@@ -232,7 +232,7 @@ if (!modelExtent) triggerErrorFail('You must specify a valid extent for the mode
 var modelBoundaries = getBoundaries(modelInfo, program);
 if (!modelBoundaries) triggerErrorFail('You must specify more boundary conditions.');
 
-var model = new model(modelInfo, modelExtent, modelBoundaries);
+var model = new Model(modelInfo, modelExtent, modelBoundaries);
 model.prepareModel( (success) => {
 	if (success) {
 		model.outputModel();

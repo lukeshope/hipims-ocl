@@ -2,11 +2,11 @@
 
 const fs = require('fs');
 
-var boundaries = function(definition) {
+function Boundaries (definition) {
 	this.boundaryDefinition = definition;
 };
 
-boundaries.prototype.writeFiles = function(duration, directory, cb) {
+Boundaries.prototype.writeFiles = function(duration, directory, cb) {
 	var writeRequirements = [];
 	var writeSatisfied = 0;
 	var writeComplete = function (err) {
@@ -33,7 +33,7 @@ boundaries.prototype.writeFiles = function(duration, directory, cb) {
 	writeComplete(false);
 }
 
-boundaries.prototype.writeFilesRainfall = function(duration, directory, cb) {
+Boundaries.prototype.writeFilesRainfall = function(duration, directory, cb) {
 	console.log('    Attempting to write rainfall intensity boundary.');
 	fs.writeFile(
 		directory + '/rainfall.csv',
@@ -42,7 +42,7 @@ boundaries.prototype.writeFilesRainfall = function(duration, directory, cb) {
 	);
 }
 
-boundaries.prototype.writeFilesDrainage = function(duration, directory, cb) {
+Boundaries.prototype.writeFilesDrainage = function(duration, directory, cb) {
 	console.log('    Attempting to write drainage boundary.');
 	fs.writeFile(
 		directory + '/drainage.csv',
@@ -51,36 +51,7 @@ boundaries.prototype.writeFilesDrainage = function(duration, directory, cb) {
 	);
 }
 
-boundaries.prototype.writeFilesPluvial = function(duration, directory, cb) {
-	let fileCount = 2; 
-	let fileFinished = 0;
-	let fileComplete = function(err) {
-		if (!err) {
-			fileFinished++;
-			if (fileFinished >= fileCount) {
-				cb(false);
-			}
-		} else {
-			cb(err);
-		}
-	};
-	
-	console.log('    Attempting to write rainfall intensity boundary.');
-	fs.writeFile(
-		directory + '/rainfall.csv',
-		this.getRainfall(duration),
-		fileComplete
-	);
-	
-	console.log('    Attempting to write drainage boundary.');
-	fs.writeFile(
-		directory + '/drainage.csv',
-		this.getDrainage(duration),
-		fileComplete
-	);
-}
-
-boundaries.prototype.getRainfall = function(duration) {
+Boundaries.prototype.getRainfall = function(duration) {
 	let csvHeader = 'Time (s),Rainfall intensity (mm/hr)\n';
 	let csvLines = '';
 	for (let csvTime = 0.0; csvTime <= duration; csvTime += this.boundaryDefinition.rainfallDuration) {
@@ -89,8 +60,7 @@ boundaries.prototype.getRainfall = function(duration) {
 	return csvHeader + csvLines;
 }
 
-
-boundaries.prototype.getDrainage = function(duration) {
+Boundaries.prototype.getDrainage = function(duration) {
 	let csvHeader = 'Time (s),Drainage rate (mm/hr)\n';
 	let csvLines = '';
 	csvLines += '0.0,' + this.boundaryDefinition.drainageRate + '\n';
@@ -98,4 +68,4 @@ boundaries.prototype.getDrainage = function(duration) {
 	return csvHeader + csvLines;
 }
 
-module.exports = boundaries;
+module.exports = Boundaries;

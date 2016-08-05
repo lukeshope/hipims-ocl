@@ -4,11 +4,11 @@ var gdal = require('gdal');
 var fs = require('fs');
 var path = require('path');
 
-var rasterTools = function() {
+function RasterTools () {
 	// ...
 };
 
-rasterTools.prototype.mergeToVRT = function (targetVRT, sourceFiles, cb) {
+RasterTools.prototype.mergeToVRT = function (targetVRT, sourceFiles, cb) {
 	// We don't use node-gdal here because we can't access the individual
 	// XML elements that way.
 	const dataType = 'Float32';
@@ -134,7 +134,7 @@ rasterTools.prototype.mergeToVRT = function (targetVRT, sourceFiles, cb) {
 	});
 };
 
-rasterTools.prototype.getVRTBandForFile = function (filename, baseDir, data, dataType, noDataValue) {
+RasterTools.prototype.getVRTBandForFile = function (filename, baseDir, data, dataType, noDataValue) {
 	return '\
 		<SimpleSource>\r\n\
 		  <SourceFilename relativeToVRT="1">' + path.relative(baseDir, filename) + '</SourceFilename>\r\n\
@@ -146,7 +146,7 @@ rasterTools.prototype.getVRTBandForFile = function (filename, baseDir, data, dat
 		</SimpleSource>\r\n';
 }
 
-rasterTools.prototype.clipRaster = function (sourceFile, targetFile, format, extent, cb) {
+RasterTools.prototype.clipRaster = function (sourceFile, targetFile, format, extent, cb) {
 	let sourceDataset = gdal.open(sourceFile);
 	
 	if (!sourceDataset) {
@@ -253,10 +253,73 @@ rasterTools.prototype.clipRaster = function (sourceFile, targetFile, format, ext
 	return true;
 };
 
+
+RasterTools.prototype.arrayToRaster = function (targetFile, format, extent, resolution, outputArray, cb) {
+	const dataType = 'Float32';
+	const noDataValue = -9999;
+	const targetBaseDir = path.dirname(targetFile);
+	const targetDriver = gdal.drivers.get(format);
+	
+	extent.snapToGrid(resolution);
+	const targetSizeX = extent.getSizeX(resolution);
+	const targetSizeY = extent.getSizeY(resolution);
+	
+	console.log('    Target file will be ' + targetSizeX + 'x' + targetSizeY + ' (' + (targetSizeX * targetSizeY) + ' cells)');
+	
+	if (!targetDriver) {
+		console.log('    Could not obtain driver "' + format + '" to create raster file.');
+		return false;
+	}
+	
+	let targetDataset = targetDriver.create(
+		targetFile,
+		targetSizeX,
+		targetSizeY,
+		1,
+		dataType
+	);
+	
+	if (!targetDataset) {
+		console.log('    Could not create dataset for array output.');
+		if (cb) cb(false);
+		return false;
+	}
+	
+	let targetTransform = [
+		Math.floor(extent.getLowerX() / resolution) * resolution,
+		resolution,
+		0.0,
+		Math.floor(extent.getUpperY() / resolution) * resolution,
+		0.0,
+		-resolution
+	];
+	
+	targetDataset.geoTransform = targetTransform;
+	let targetBand = targetDataset.bands.get(1);
+
+	if (!targetBand) {
+		console.log('    Could not get target band for array output.');
+		if (cb) cb(false);
+		return false;
+	}
+	
+	let targetPixels = targetBand.pixels;
+	targetBand.noDataValue = noDataValue;
+	for (let y = 0; y < targetSizeY; y++) {
+		let rowData = new Float32Array(Array.prototype.slice.call(outputArray, y * targetSizeY, (y + 1) * targetSizeY));
+		targetPixels.write(0, targetSizeY - y - 1, targetSizeX, 1, rowData);
+	}
+	targetDataset.flush();
+	targetDataset.close();
+	
+	if (cb) setTimeout(function () { cb(true) }, 0);
+	return true;
+};
+
 var thisInstance = null;
 module.exports = function () {
 	if ( !thisInstance ) {
-		thisInstance = new rasterTools();
+		thisInstance = new RasterTools();
 	}
 	return thisInstance;
 }();

@@ -1,10 +1,10 @@
 'use strict';
 
-var bngConversion = function() {
+function BngConversion () {
 	// ...
 };
 
-bngConversion.prototype.enToRef = function(easting, northing, precision) {
+BngConversion.prototype.enToRef = function(easting, northing, precision) {
 	const gridChars = 'ABCDEFGHJKLMNOPQRSTUVWXYZ';
 	var letterCoordE = Math.floor(easting / 100000);
 	var letterCoordN = Math.floor(northing / 100000);
@@ -32,7 +32,7 @@ bngConversion.prototype.enToRef = function(easting, northing, precision) {
 var thisInstance = null;
 module.exports = function () {
 	if ( !thisInstance ) {
-		thisInstance = new bngConversion();
+		thisInstance = new BngConversion();
 	}
 	return thisInstance;
 }();

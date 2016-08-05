@@ -1,16 +1,16 @@
 'use strict';
 
-var domainBNG = require('./domainBNG');
-var domainLab = require('./domainLab');
+var DomainBNG = require('./DomainBNG');
+var DomainLab = require('./DomainLab');
 
 module.exports = {
 	getDomainForType: function (domainType) {
 		switch (domainType) {
 			case 'world':
-				return domainBNG;
+				return DomainBNG;
 			case 'laboratory':
 			case 'imaginary':
-				return domainLab;
+				return DomainLab;
 		}
 		
 		return null;

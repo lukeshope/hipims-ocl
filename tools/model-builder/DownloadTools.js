@@ -4,7 +4,7 @@ const fs = require('fs');
 const http = require('http');
 const downloadDir = './download';
 
-var downloadTools = function() {
+function DownloadTools () {
 	// Store a queue
 	this.downloadReady = false;
 	this.downloadQueue = [];
@@ -27,7 +27,7 @@ var downloadTools = function() {
 	});
 };
 
-downloadTools.prototype.createDirectory = function () {
+DownloadTools.prototype.createDirectory = function () {
 	fs.mkdir(downloadDir, (err) => {
 		console.log('    ' + (!err ? 'Made' : 'Could not make') + ' downloads directory.');
 		this.downloadReady = !err;
@@ -35,26 +35,31 @@ downloadTools.prototype.createDirectory = function () {
 	});
 };
 
-downloadTools.prototype.emptyDirectory = function () {
+DownloadTools.prototype.emptyDirectory = function () {
 	// ...TODO
 };
 
-downloadTools.prototype.getDirectoryPath = function () {
+DownloadTools.prototype.getDirectoryPath = function () {
 	return downloadDir + '/';
 };
 
-downloadTools.prototype.pushToQueue = function(url, filename, cb) {
+DownloadTools.prototype.pushToQueue = function(url, filename, cb) {
 	this.downloadQueue.push(this.downloadItem(url, filename, cb));
 	this.processQueue();
 };
 
-downloadTools.prototype.processQueue = function() {
+DownloadTools.prototype.processQueue = function() {
 	if (!this.downloadReady) return;
 	if (!this.downloadQueue.length) return;
 	this.fetchToFile(this.downloadQueue.splice(0, 1)[0]);
 };
 
-downloadTools.prototype.fetchToFile = function (queueItem) {
+DownloadTools.prototype.fetchToFile = function (queueItem) {
+	if (!queueItem.filename && !queueItem.url && queueItem.cb) {
+		queueItem.cb(null, null);
+		return;
+	}	
+
 	const targetPath = downloadDir + '/' + queueItem.filename;
 	var file = fs.createWriteStream(targetPath);
 	console.log('    Downloading ' + queueItem.filename + '...');
@@ -77,7 +82,7 @@ downloadTools.prototype.fetchToFile = function (queueItem) {
 var thisInstance = null;
 module.exports = function () {
 	if ( !thisInstance ) {
-		thisInstance = new downloadTools();
+		thisInstance = new DownloadTools();
 	}
 	return thisInstance;
 }();

@@ -1,17 +1,18 @@
 'use strict';
 
-var bngTile = require('./bngTile');
-var rasterTools = require('./raster');
-var downloadTools = require('./download');
+var DomainBase = require('./DomainBase');
+var BngTile = require('./BngTile');
+var rasterTools = require('./RasterTools');
+var downloadTools = require('./DownloadTools');
 
-var domainBNG = function(parentModel, cb) {
-	this.parentModel = parentModel;
-	this.extent = parentModel.getExtent();
+function DomainBNG (parentModel, cb) {
+	DomainBase.apply(this, Array.prototype.slice.call(arguments));
 	this.tiles = this.extent.getBngTileNames();
 	this.domainPrepare(cb);
 };
+DomainBNG.prototype = new DomainBase();
 
-domainBNG.prototype.domainPrepare = function (cb) {
+DomainBNG.prototype.domainPrepare = function (cb) {
 	console.log('--> Preparing domain data...');
 	
 	this.bngTiles = {};
@@ -21,12 +22,12 @@ domainBNG.prototype.domainPrepare = function (cb) {
 	this.clipCallback = cb;
 	
 	this.tiles.forEach((tileName) => {
-		this.bngTiles[tileName] = new bngTile(tileName);
+		this.bngTiles[tileName] = new BngTile(tileName);
 		this.bngTiles[tileName].requireTile(this.domainPrepareTileFinished.bind(this));
 	});
 };
 
-domainBNG.prototype.domainPrepareTileFinished = function (tileName) {
+DomainBNG.prototype.domainPrepareTileFinished = function (tileName) {
 	this.bngTileDone++;
 	console.log('    Tile ' + tileName + ' required for the domain is now ready.');
 	
@@ -36,7 +37,7 @@ domainBNG.prototype.domainPrepareTileFinished = function (tileName) {
 	}
 };
 
-domainBNG.prototype.domainPrepareFinished = function (tileName) {
+DomainBNG.prototype.domainPrepareFinished = function (tileName) {
 	// Make a single VRT for the DTM and the DEM
 	rasterTools.mergeToVRT(
 		downloadTools.getDirectoryPath() + 'DOMAIN_DTM.vrt',
@@ -66,7 +67,7 @@ domainBNG.prototype.domainPrepareFinished = function (tileName) {
 	);
 };
 
-domainBNG.prototype.domainClip = function () {
+DomainBNG.prototype.domainClip = function () {
 	console.log('--> Preparing to clip the domain...');
 	
 	rasterTools.clipRaster(
@@ -86,13 +87,13 @@ domainBNG.prototype.domainClip = function () {
 	);
 }
 
-domainBNG.prototype.domainClipFinished = function () {
+DomainBNG.prototype.domainClipFinished = function () {
 	console.log('    Domain clipping is now complete.');
 	if (this.clipCallback) this.clipCallback(true);
 }
 
-domainBNG.prototype.getPathTopography = function () {
+DomainBNG.prototype.getPathTopography = function () {
 	return downloadTools.getDirectoryPath() + 'CLIP_DTM.img';
 }
 
-module.exports = domainBNG;
+module.exports = DomainBNG;
