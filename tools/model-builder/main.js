@@ -80,9 +80,11 @@ function getInfo (commands) {
 	if (!commands.source) return false;
 	if (!commands.directory) return false;
 	
-	var modelSource = commands.source.toString().toLowerCase();
 	var modelDomainType;
+	var modelSource = (commands.source || '').toString().toLowerCase();
+	var modelScheme = (commands.scheme || '').toString().toLowerCase();
 	var modelResolution = parseFloat(commands.resolution);
+	var manningCoefficient = parseFloat(commands.manning);
 	
 	switch (modelSource) {
 		case 'pluvial':
@@ -95,7 +97,7 @@ function getInfo (commands) {
 			modelDomainType = 'laboratory';
 		break;
 		default:
-			console.log('Sorry -- only pluvial models are currently supported by model builder.');
+			console.log('Sorry -- only pluvial and numerical test models are currently supported by model builder.');
 			return false;
 		break;
 	}
@@ -119,14 +121,24 @@ function getInfo (commands) {
 		return false;
 	}
 	
+	if (commands.manning !== undefined && (
+	    !isFinite(manningCoefficient) ||
+		isNaN(manningCoefficient) ||
+		manningCoefficient < 0)) {
+		console.log('Sorry -- Manning coefficient is invalid.');
+		return false;
+	}
+	
 	return {
 		name: commands.name || 'Undefined',
 		source: modelSource,
 		targetDirectory: commands.directory,
 		duration: getSeconds(commands.time),
 		outputFrequency: getSeconds(commands.outputFrequency),
+		scheme: modelScheme,
 		domainType: modelDomainType,
-		domainResolution: modelResolution
+		domainResolution: modelResolution,
+		domainManningCoefficient: manningCoefficient
 	};
 }
 
@@ -210,7 +222,9 @@ program
 	.option('-n, --name <name>', 'short name for the model')
 	.option('-s, --source [pluvial|fluvial|tidal|...]', 'type of model to construct')
 	.option('-d, --directory <dir>', 'target directory for model')
+	.option('-ns, --scheme [godunov|muscl-hancock]', 'numerical scheme to apply')
 	.option('-r, --resolution <resolution>', 'grid resolution in metres')
+	.option('-mc, --manning <coefficient>', 'energy loss Manning coefficient')
 	.option('-t, --time <duration>', 'duration of simulation')
 	.option('-of, --output-frequency <frequency>', 'raster output frequency')
 	.option('-dn, --decompose <domains>', 'decompose for multi-device')
@@ -221,8 +235,8 @@ program
 	.option('-ri, --rainfall-intensity <Xmm/hr>', 'rainfall intensity')
 	.option('-rd, --rainfall-duration <Xmins>', 'rainfall duration')
 	.option('-dr, --drainage <Xmm/hr>', 'drainage rate')
-	.parse(process.argv)
-	
+	.parse(process.argv);
+
 var modelInfo = getInfo(program);
 if (!modelInfo) triggerErrorFail('You must specify more inforation about this model.');
 

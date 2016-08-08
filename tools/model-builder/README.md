@@ -10,32 +10,34 @@ hipims-mb --help
 ````
 
 ## Command-line options
-Currently only pluvial (surface water flooding) models are supported, and options such as resampling the data to a different resolution are not available.
+Currently only pluvial (surface water flooding) and numerical test case (analytical or laboratory-scale) models are supported, and options such as resampling the data to a different resolution are not available for LiDAR data.
 
 ````
   Usage: hipims-mb [options]
 
   Options:
 
-  Options:
-
-    -h, --help                                     output usage information
-    -V, --version                                  output the version number
-    -n, --name <name>                              short name for the model
-    -s, --source [pluvial|fluvial|tidal|combined]  type of model to construct
-    -d, --directory <dir>                          target directory for model
-    -r, --resolution <resolution>                  grid resolution in metres
-    -t, --time <duration>                          duration of simulation
-    -of, --output-frequency <frequency>            raster output frequency
-    -dn, --decompose <domains>                     decompose for multi-device
-    -ll, --lower-left <easting,northing>           lower left coordinates
-    -ur, --upper-right <easting,northing>          upper right coordinates
-    -ri, --rainfall-intensity <Xmm/hr>             rainfall intensity
-    -rd, --rainfall-duration <Xmins>               rainfall duration
-    -dr, --drainage <Xmm/hr>                       drainage rate
+    -h, --help                                output usage information
+    -V, --version                             output the version number
+    -n, --name <name>                         short name for the model
+    -s, --source [pluvial|fluvial|tidal|...]  type of model to construct
+    -d, --directory <dir>                     target directory for model
+    -ns, --scheme [godunov|muscl-hancock]     numerical scheme to apply
+    -r, --resolution <resolution>             grid resolution in metres
+    -mc, --manning <coefficient>              energy loss Manning coefficient
+    -t, --time <duration>                     duration of simulation
+    -of, --output-frequency <frequency>       raster output frequency
+    -dn, --decompose <domains>                decompose for multi-device
+    -ll, --lower-left <easting,northing>      lower left coordinates
+    -ur, --upper-right <easting,northing>     upper right coordinates
+    -w, --width <size>                        domain width
+    -h, --height <size>                       domain height
+    -ri, --rainfall-intensity <Xmm/hr>        rainfall intensity
+    -rd, --rainfall-duration <Xmins>          rainfall duration
+    -dr, --drainage <Xmm/hr>                  drainage rate
 ````
 
-## Example
+## Example for surface water flooding
 This command will create a pluvial (surface water flooding only) model for part of the centre of Newcastle upon Tyne. The total duration of the simulation will be three hours, during which there will be 80mm/hr of rainfall for the first hour.
 
 Coordinates for the lower left and upper right of the domain are metres in OSGB36. If you need to find coordinates easily you can use [this site](http://www.nearby.org.uk/coord.cgi?p=NE6+1TX&f=full) with postcodes or latitude and longitude. For example the postcode NE1 7RU has the coordinates 424693,565147 which you can convert into a box by adding and subtracting a suitable distance in metres.
@@ -71,6 +73,25 @@ You can load the topography and simulation results in a free GIS program such as
 The above image shows the problems caused by bridges, tunnels and culverts. On the university campus for example, flooding is exaggerated by the absence of a flow path where in reality there are paths underneath buildings, and by not representing a culverted river used as a sewer.
 
 With a reasonably modern GPU in your system, you can expect the simulation to take less than an hour to complete. Running on a CPU only is likely to take several hours.
+
+## Example for numerical tests
+A suite of numerical test cases are being developed, which can be used as part of the development process for automated testing. These test cases also form the basis for some of the published work detailing HiPIMS, such as providing evidence that the domain decomposition is not adversely affecting the quality of the results.
+
+An example for a sloshing parabolic bowl, where the analytical solution is known for comparison, would be...
+````
+hipims-mb --name="Sloshing Parabolic Bowl"
+          --source=analytical
+          --directory="models/sloshing-bowl"
+          --resolution=10
+          --time=3600s
+          --output-frequency=300s
+          --manning=0.00
+          --scheme=muscl-hancock
+          --width=10000
+          --height=10000
+````
+
+The support directory contains the analytical solutions at each output interval for comparison. Further details are provided [here](tests/).
 
 ## Further developments
 

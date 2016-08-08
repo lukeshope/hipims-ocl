@@ -7,7 +7,7 @@ var testDefinitions = {
 module.exports = {
 	getTestByName: function (testName) {
 		if (testDefinitions[testName]) {
-			return testDefinitions[testName].getTest();
+			return testDefinitions[testName];
 		}
 
 		return null;

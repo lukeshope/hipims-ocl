@@ -22,7 +22,7 @@ Boundaries.prototype.writeFiles = function(duration, directory, cb) {
 		}
 	};
 	
-	if (this.boundaryDefinition.rainfallDuration) {
+	if (this.boundaryDefinition.rainfallIntensity) {
 		writeRequirements.push(this.writeFilesRainfall.bind(this, duration, directory, writeComplete));
 	}
 	
@@ -31,6 +31,14 @@ Boundaries.prototype.writeFiles = function(duration, directory, cb) {
 	}
 	
 	writeComplete(false);
+}
+
+Boundaries.prototype.hasDrainage = function() {
+	return !!this.boundaryDefinition.drainageRate;
+}
+
+Boundaries.prototype.hasRainfall = function() {
+	return !!this.boundaryDefinition.rainfallIntensity;
 }
 
 Boundaries.prototype.writeFilesRainfall = function(duration, directory, cb) {

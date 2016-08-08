@@ -6,7 +6,7 @@ In short, this software simulates river, tidal and pluvial (direct rainfall) flo
 ## Associated tools
 
 You might want to look at these.
-* **Model builder** to automatically download Environment Agency open data, and create a flood model you can throw straight at this software. Currently limited to pluvial flooding only. [More details are here...](https://github.com/lukessmith/hipims-ocl/tree/master/tools/model-builder)
+* **Model builder** to automatically download Environment Agency open data, and create a flood model you can throw straight at this software. Currently limited to pluvial flooding and a suite of numerical test cases only. [More details are here...](tools/model-builder)
 
 ## Background
 

@@ -1,3 +1,4 @@
 download
 node_modules
 models
+*.log
