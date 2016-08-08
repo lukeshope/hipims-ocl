@@ -76,6 +76,33 @@ function getRate (timeString) {
 	return parseFloat(quantity);
 }
 
+function getConstants (constantString) {
+	let constantSet = {};
+	let constantPairs = constantString.split(',');
+	
+	for (let i = 0; i < constantPairs.length; i++) {
+		let constant = constantPairs[i].trim().split('=');
+		
+		if (constant.length !== 2) {
+			console.log('Invalid constant string.');
+			return null;
+		}
+		
+		let constantKey = constant.shift().trim();
+		let constantValue = parseFloat(constant.shift().trim());
+		
+		if (!isFinite(constantValue) ||
+		    isNaN(constantValue)) {
+			console.log('Invalid constant string.');
+			return null;
+		}
+		
+		constantSet[constantKey] = constantValue;
+	}
+	
+	return constantSet;
+}
+
 function getInfo (commands) {
 	if (!commands.source) return false;
 	if (!commands.directory) return false;
@@ -85,6 +112,7 @@ function getInfo (commands) {
 	var modelScheme = (commands.scheme || '').toString().toLowerCase();
 	var modelResolution = parseFloat(commands.resolution);
 	var manningCoefficient = parseFloat(commands.manning);
+	var modelConstants = {};
 	
 	switch (modelSource) {
 		case 'pluvial':
@@ -129,6 +157,11 @@ function getInfo (commands) {
 		return false;
 	}
 	
+	if (commands.constants) {
+		modelConstants = getConstants(commands.constants);
+		if (modelConstants === null) return;
+	}
+	
 	return {
 		name: commands.name || 'Undefined',
 		source: modelSource,
@@ -138,7 +171,8 @@ function getInfo (commands) {
 		scheme: modelScheme,
 		domainType: modelDomainType,
 		domainResolution: modelResolution,
-		domainManningCoefficient: manningCoefficient
+		domainManningCoefficient: manningCoefficient,
+		constants: modelConstants
 	};
 }
 
@@ -235,6 +269,7 @@ program
 	.option('-ri, --rainfall-intensity <Xmm/hr>', 'rainfall intensity')
 	.option('-rd, --rainfall-duration <Xmins>', 'rainfall duration')
 	.option('-dr, --drainage <Xmm/hr>', 'drainage rate')
+	.option('-c, --constants <a=X,b=Y>', 'override underlying constants')
 	.parse(process.argv);
 
 var modelInfo = getInfo(program);

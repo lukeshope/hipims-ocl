@@ -18,7 +18,13 @@ hipims-mb --name="Sloshing Parabolic Bowl"
           --scheme=muscl-hancock
           --width=10000
           --height=10000
+          --constants="a=3000,h0=10,B=5"
 ````
+Constant values are used to define the initial conditions and parabolic shape.
+
+* **a** is used to scale the parabolic bowl, and represents the distance to shoreline
+* **B** defines the initial flow velocity
+* **h0** is the water depth at the domain centre and used to scale the bowl dimensions
 
 Details of the test can be found in Wang Y., Liang Q., Kesserwani G., Hall J.W. (2011) [A 2D shallow flow model for practical dam-break simulations](http://dx.doi.org/10.1080/00221686.2011.566248), _Journal of Hydraulic Research_, 49(3):307-316.
 

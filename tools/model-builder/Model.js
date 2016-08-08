@@ -21,6 +21,7 @@ function Model (definition, extent, boundaries) {
 	this.outputFrequency = definition.outputFrequency || this.duration;
 	this.domain = null;
 	this.boundaries = boundaries;
+	this.constants = definition.constants;
 };
 
 Model.prototype.getName = function () {
@@ -45,6 +46,10 @@ Model.prototype.getOutputFrequency = function () {
 
 Model.prototype.getManningCoefficient = function () {
 	return this.manningCoefficient;
+}
+
+Model.prototype.getConstant = function (value) {
+	return this.constants[value];
 }
 
 Model.prototype.overrideManningCoefficient = function (newCoefficient) {

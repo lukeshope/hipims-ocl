@@ -6,10 +6,11 @@ const Gravity = 9.806;
 function TestSloshingBowl () {
 	TestCaseBase.apply(this, Array.prototype.slice.call(arguments));
 	
-	this.bowlH0 = 10.0;					// Scaling factor
-	this.bowlAlpha = 3000.0;			// Sloping factor
-	this.bowlBeta = 5.0;				// Initial velocity (m/s)
-	this.bowlTau = 0.0;					// Friction parameter
+	this.bowlH0 = this.parentDomain.parentModel.getConstant('h0') || 10.0;		// Scaling factor
+	this.bowlAlpha = this.parentDomain.parentModel.getConstant('a') || 3000.0;	// Sloping factor
+	this.bowlBeta = this.parentDomain.parentModel.getConstant('B') || 5.0;		// Initial velocity (m/s)
+	this.bowlTau = this.parentDomain.parentModel.getConstant('t') || 0.0;		// Friction parameter
+	
 	this.calculateDerivatives();
 };
 TestSloshingBowl.prototype = new TestCaseBase();
@@ -28,22 +29,6 @@ TestSloshingBowl.prototype.getDescription = function () {
 		 '\n    Wang et al. (2011) A 2D shallow flow model' +
 		 '\n    for practical dam-break simulations, Journal' +
 		 '\n    of Hydraulic Research, 49(3):307-316.';
-}
-
-TestSloshingBowl.prototype.getGridUsingFormula = function (domainSizeX, domainSizeY, domainResolution, cellFormula, timeValue) {
-	let domainData = new Float32Array(domainSizeX * domainSizeY);
-
-	// Reverse the direction of the Y-axis for these tests to match our LL origin
-	for (let x = 0; x < domainSizeX; x++ ) {
-		for (let y = 0; y < domainSizeY; y++) {
-			let x0 = (x - Math.round(domainSizeX / 2)) * domainResolution;
-			let y0 = domainSizeY - (y - Math.round(domainSizeY / 2)) * domainResolution;
-			let a = y * domainSizeY + x;
-			domainData[a] = cellFormula.call(this, x0, y0, timeValue);
-		}
-	}
-	
-	return domainData;
 }
 
 TestCaseBase.prototype.getManningCoefficient = function () {

@@ -4,6 +4,22 @@ function TestCaseBase (parentDomain) {
 	this.parentDomain = parentDomain;
 };
 
+TestCaseBase.prototype.getGridUsingFormula = function (domainSizeX, domainSizeY, domainResolution, cellFormula, timeValue) {
+	let domainData = new Float32Array(domainSizeX * domainSizeY);
+
+	// Reverse the direction of the Y-axis for these tests to match our LL origin
+	for (let x = 0; x < domainSizeX; x++ ) {
+		for (let y = 0; y < domainSizeY; y++) {
+			let x0 = (x - Math.round(domainSizeX / 2)) * domainResolution;
+			let y0 = ((domainSizeY - y) - Math.round(domainSizeY / 2)) * domainResolution;
+			let a = y * domainSizeX + x;
+			domainData[a] = cellFormula.call(this, x0, y0, timeValue);
+		}
+	}
+	
+	return domainData;
+}
+
 TestCaseBase.prototype.getExtent = function () {
 	return null;
 }
