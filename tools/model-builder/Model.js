@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const domain = require('./Domain');
 const downloadTools = require('./DownloadTools');
+const rasterTools = require('./RasterTools');
 
 function Model (definition, extent, boundaries) {
 	this.name = definition.name;
@@ -22,6 +23,10 @@ function Model (definition, extent, boundaries) {
 	this.domain = null;
 	this.boundaries = boundaries;
 	this.constants = definition.constants;
+	this.domainCount = definition.domainDecompose || 1;
+	this.domainDecomposeMethod = definition.domainDecomposeMethod;
+	this.domainDecomposeOverlap = definition.domainDecomposeOverlap;
+	this.domainDecomposeForecastTarget = definition.domainDecomposeForecastTarget;
 };
 
 Model.prototype.getName = function () {
@@ -34,6 +39,10 @@ Model.prototype.getExtent = function () {
 
 Model.prototype.getResolution = function () {
 	return this.domainResolution;
+}
+
+Model.prototype.getDomainCount = function () {
+	return this.domainCount;
 }
 
 Model.prototype.getDuration = function () {
@@ -56,6 +65,14 @@ Model.prototype.overrideManningCoefficient = function (newCoefficient) {
 	if (newCoefficient !== this.manningCoefficient) {
 		this.manningCoefficient = newCoefficient;
 		console.log('    Manning coefficient value has been forced by the domain.');
+	}
+}
+
+Model.prototype.getResolvedFilename = function(filename, domainID) {
+	if (domainID === null || domainID === undefined) {
+		return filename.replace(/([-_ ]|)\%d/, '');
+	} else {
+		return filename.replace('%d', (domainID + 1).toString())
 	}
 }
 
@@ -127,20 +144,50 @@ Model.prototype.outputModelTopography = function() {
 		sourceFile = sourceFiles[i];
 		for (j = 0; j < sourceFile.actions.length; j++) {
 			sourceAction = sourceFile.actions[j];
+			
 			if (sourceAction.action === 'copy') {
 				sourceRequirements++;
+				let targetFilename = this.getResolvedFilename(this.targetDirectory + '/topography/' + sourceFile.source);
 				fs.copyFile(
 					sourceAction.source,
-					this.targetDirectory + '/topography/' + sourceFile.source,
+					targetFilename,
 					(err) => {
 						if (!err) {
 							sourceComplete++;
 							if (sourceComplete >= sourceRequirements) {
-								console.log('    All file sources copied successfully.');
+								console.log('    All file sources prepared successfully.');
 								this.outputTopography = true;
 							}
 						} else {
 							console.log('    An error occured copying a domain source file.');
+						}
+					}
+				);
+			}
+			
+			if (sourceAction.action === 'split') {
+				sourceRequirements++;
+				let targetCount = this.getDomainCount();
+				let targetFileBase = this.targetDirectory + '/topography/' + sourceFile.source;
+				let targetFilenames = [];
+				
+				for (let k = 0; k < targetCount; k++) {
+					targetFilenames.push(this.getResolvedFilename(targetFileBase, k));
+				}
+				
+				rasterTools.divideRaster(
+					sourceAction.source,
+					targetFilenames,
+					this.domainDecomposeOverlap,
+					(success) => {
+						if (success) {
+							sourceComplete++;
+							if (sourceComplete >= sourceRequirements) {
+								console.log('    All file sources divided successfully.');
+								this.outputTopography = true;
+							}
+						} else {
+							console.log('    An error occured dividing a domain source file.');
 						}
 					}
 				);
@@ -211,22 +258,15 @@ Model.prototype.outputModelConfiguration = function() {
 }
 
 Model.prototype.getXMLFile = function() {
-	let xmlDataSources = '', xmlBoundaries = '';
-	let dataSources = this.domain.getDataSources();
+	let domainDataSources = this.domain.getDataSources();
+	let domainCount = this.getDomainCount();
+	let domainSyncMethod = this.domainDecomposeMethod !== undefined ? (' syncMethod="' + this.domainDecomposeMethod + '"') : '';
+	let domainSyncSpareSize = this.domainDecomposeForecastTarget !== undefined ? (' syncSpareSize="' + this.domainDecomposeForecastTarget + '"') : '';
+	let xmlBoundaries = '';
 	
-	if (!dataSources) {
+	if (!domainDataSources) {
 		console.log('    Not enough data to create a model.');
 		return;
-	}
-	
-	let manningDefined = false;
-	for (let i = 0; i < dataSources.length; i++) {
-		xmlDataSources += '						<dataSource type="' + dataSources[i].type + '" value="' + dataSources[i].value + '" source="' + dataSources[i].source + '" />\n';
-		if (dataSources[i].value === 'manningCoefficient') manningDefined = true;
-	}
-	
-	if (!manningDefined && this.manningCoefficient > 0.0) {
-		xmlDataSources += '						<dataSource type="constant" value="manningCoefficient" source="' + this.manningCoefficient.toFixed(5) + '" />\n';
 	}
 	
 	if (this.boundaries.hasRainfall()) {
@@ -254,25 +294,52 @@ Model.prototype.getXMLFile = function() {
 			<parameter name="duration" value="' + this.duration + '" />\n\
 			<parameter name="outputFrequency" value="' + this.outputFrequency + '" />\n\
 			<parameter name="floatingPointPrecision" value="double" />\n\
-			<domainSet>\n\
-				<domain type="cartesian" deviceNumber="1">\n\
+			<domainSet' + domainSyncMethod + domainSyncSpareSize + '>\n';
+	
+	for (let i = 0; i < domainCount; i++ ) {
+		let xmlDataSources = ''
+		let xmlSchemeOptions = '';
+		let manningDefined = false;
+		let domainSuffix = domainCount > 1 ? '_d' + (i + 1).toString() : '';
+		
+		for (let j = 0; j < domainDataSources.length; j++) {
+			let resolvedName = this.getResolvedFilename(domainDataSources[j].source, domainCount > 1 ? i : null);
+			xmlDataSources += '						<dataSource type="' + domainDataSources[j].type + '" value="' + domainDataSources[j].value + '" source="' + resolvedName + '" />\n';
+			if (domainDataSources[j].value === 'manningCoefficient') manningDefined = true;
+		}
+		
+		if (!manningDefined && this.manningCoefficient > 0.0) {
+			xmlDataSources += '						<dataSource type="constant" value="manningCoefficient" source="' + this.manningCoefficient.toFixed(5) + '" />\n';
+		}
+		
+		if (this.domainDecomposeForecastTarget && this.domainDecomposeForecastTarget > 0.0) {
+			xmlSchemeOptions += '						<parameter name="queueMode" value="fixed" />\n';
+			xmlSchemeOptions += '						<parameter name="queueSize" value="' + this.domainDecomposeForecastTarget + '" />\n';
+		}
+		
+		xml += '\
+				<domain type="cartesian" deviceNumber="' + (i + 1).toString() + '">\n\
 					<data sourceDir="topography/"\n\
 						  targetDir="output/">\n\
 ' + xmlDataSources.trimRight() + '\n\
-						<dataTarget type="raster" value="depth" format="HFA" target="depth_dem_%t.img" />\n\
-						<dataTarget type="raster" value="velocityX" format="HFA" target="velX_dem_%t.img" />\n\
-						<dataTarget type="raster" value="velocityY" format="HFA" target="velY_dem_%t.img" />\n\
-						<dataTarget type="raster" value="fsl" format="HFA" target="fsl_dem_%t.img" />\n\
-						<dataTarget type="raster" value="maxdepth" format="HFA" target="maxdepth_dem_%t.img" />\n\
+						<dataTarget type="raster" value="depth" format="HFA" target="depth_%t' + domainSuffix + '.img" />\n\
+						<dataTarget type="raster" value="velocityX" format="HFA" target="velX_%t' + domainSuffix + '.img" />\n\
+						<dataTarget type="raster" value="velocityY" format="HFA" target="velY_%t' + domainSuffix + '.img" />\n\
+						<dataTarget type="raster" value="fsl" format="HFA" target="fsl_%t' + domainSuffix + '.img" />\n\
+						<dataTarget type="raster" value="maxdepth" format="HFA" target="maxdepth_%t' + domainSuffix + '.img" />\n\
 					</data>\n\
 					<scheme name="' + this.scheme + '">\n\
 						<parameter name="courantNumber" value="0.50" />\n\
 						<parameter name="groupSize" value="32x8" />\n\
+' + xmlSchemeOptions.trimRight() + '\n\
 					</scheme>\n\
 					<boundaryConditions sourceDir="boundaries/">\n\
 ' + xmlBoundaries.trimRight() + '\n\
 					</boundaryConditions>\n\
-				</domain>\n\
+				</domain>\n';
+	}
+				
+	xml += '\
 			</domainSet>\n\
 		</simulation>\n\
 	</configuration>\n\

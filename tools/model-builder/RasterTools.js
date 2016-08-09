@@ -3,6 +3,7 @@
 var gdal = require('gdal');
 var fs = require('fs');
 var path = require('path');
+var Extent = require('./Extent');
 
 function RasterTools () {
 	// ...
@@ -144,6 +145,51 @@ RasterTools.prototype.getVRTBandForFile = function (filename, baseDir, data, dat
 		  <DstRect xOff="' + data.offsetX + '" yOff="' + data.offsetY + '" xSize="' + data.sizeY + '" ySize="' + data.sizeY + '" />\r\n\
 		  <NODATA>' + noDataValue + '</NODATA>\r\n\
 		</SimpleSource>\r\n';
+}
+
+RasterTools.prototype.divideRaster = function (sourceFile, targetFiles, overlapRows, cb) {
+	let sourceDataset = gdal.open(sourceFile);
+	var targetCount = targetFiles.length;
+	
+	if (!sourceDataset) {
+		console.log('    Could not open "' + sourceFile + '" to divide data.');
+		return false;
+	}
+	
+	let sourceSizeX = sourceDataset.rasterSize.x;
+	let sourceSizeY = sourceDataset.rasterSize.y;
+	let sourceTransform = sourceDataset.geoTransform;
+	let sourceResolution = Math.abs(sourceTransform[5]);
+	let sourceBaseX = sourceTransform[0];
+	let sourceBaseY = sourceTransform[5] < 0 ? sourceTransform[3] - sourceSizeY * Math.abs(sourceTransform[5]) : sourceTransform[3];
+	let sourceFullSize = (sourceSizeY + (targetCount - 1) * overlapRows) * sourceResolution;
+	let sourceEachSize = sourceFullSize / targetCount;
+
+	let clipXMin = sourceBaseX;
+	let clipXMax = sourceBaseX + sourceSizeX * sourceResolution;
+	let clipComplete = 0;
+	for (let i = 0; i < targetCount; i++) {
+		let clipYMin = Math.floor((sourceBaseY + i * sourceEachSize - i * overlapRows * sourceResolution)/sourceResolution) * sourceResolution;
+		let clipYMax = Math.ceil((clipYMin + sourceEachSize)/sourceResolution) * sourceResolution;
+		this.clipRaster(
+			sourceFile,
+			targetFiles[i],
+			'HFA',
+			new Extent(
+				clipXMin, 
+				clipYMin,
+				clipXMax,
+				clipYMax
+			),
+			(success) => {
+				if (!success) return;
+				clipComplete++;
+				if (clipComplete >= targetCount) {
+					cb(true);
+				}
+			}
+		);
+	}
 }
 
 RasterTools.prototype.clipRaster = function (sourceFile, targetFile, format, extent, cb) {

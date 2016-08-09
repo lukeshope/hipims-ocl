@@ -17,14 +17,22 @@ DomainBase.prototype.domainPrepare = function (cb) {
 
 DomainBase.prototype.getDataSources = function () {
 	var domainFiles = [];
+	var domainCount = this.parentModel.getDomainCount();
 	
 	function getSourceDefinition(type, value, filename, copyFrom) {
 		var actions = [];
 		if (copyFrom) {
-			actions.push({
-				action: 'copy',
-				source: copyFrom
-			});
+			if (domainCount > 1) {
+				actions.push({
+					action: 'split',
+					source: copyFrom
+				});
+			} else {
+				actions.push({
+					action: 'copy',
+					source: copyFrom
+				});
+			}
 		}
 		return {
 			type: type,
@@ -35,27 +43,27 @@ DomainBase.prototype.getDataSources = function () {
 	}
 	
 	if (this.getPathTopography()) {
-		domainFiles.push(getSourceDefinition('raster', 'structure,dem', 'MODEL_TOPOGRAPHY.img', this.getPathTopography()));
+		domainFiles.push(getSourceDefinition('raster', 'structure,dem', 'MODEL_TOPOGRAPHY_%d.img', this.getPathTopography()));
 	} else {
 		return false;
 	}
 	
 	if (this.getPathInitialDepth()) {
-		domainFiles.push(getSourceDefinition('raster', 'depth', 'MODEL_INITIAL_DEPTH.img', this.getPathInitialDepth()));
+		domainFiles.push(getSourceDefinition('raster', 'depth', 'MODEL_INITIAL_DEPTH_%d.img', this.getPathInitialDepth()));
 	} else if (this.getPathInitialFSL()) {
-		domainFiles.push(getSourceDefinition('raster', 'fsl', 'MODEL_INITIAL_FSL.img', this.getPathInitialFSL()));
+		domainFiles.push(getSourceDefinition('raster', 'fsl', 'MODEL_INITIAL_FSL_%d.img', this.getPathInitialFSL()));
 	} else {
 		domainFiles.push(getSourceDefinition('constant', 'depth', '0.0'));
 	}
 	
 	if (this.getPathInitialVelocityX()) {
-		domainFiles.push(getSourceDefinition('raster', 'velocityX', 'MODEL_INITIAL_VEL_X.img', this.getPathInitialVelocityX()));
+		domainFiles.push(getSourceDefinition('raster', 'velocityX', 'MODEL_INITIAL_VEL_X_%d.img', this.getPathInitialVelocityX()));
 	} else {
 		domainFiles.push(getSourceDefinition('constant', 'velocityX', '0.0'));
 	}
 	
 	if (this.getPathInitialVelocityY()) {
-		domainFiles.push(getSourceDefinition('raster', 'velocityY', 'MODEL_INITIAL_VEL_Y.img', this.getPathInitialVelocityY()));
+		domainFiles.push(getSourceDefinition('raster', 'velocityY', 'MODEL_INITIAL_VEL_Y_%d.img', this.getPathInitialVelocityY()));
 	} else {
 		domainFiles.push(getSourceDefinition('constant', 'velocityY', '0.0'));
 	}

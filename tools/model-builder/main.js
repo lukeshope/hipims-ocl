@@ -76,6 +76,15 @@ function getRate (timeString) {
 	return parseFloat(quantity);
 }
 
+function getPercentage (percentageString) {
+	if (percentageString.indexOf('%') !== percentageString.length - 1) {
+		console.log('Invalid percentage specified: ' + percentageString);
+		return false;
+	}
+	
+	return parseFloat(percentageString.substr(0, percentageString.length - 1));
+}
+
 function getConstants (constantString) {
 	let constantSet = {};
 	let constantPairs = constantString.split(',');
@@ -111,6 +120,10 @@ function getInfo (commands) {
 	var modelSource = (commands.source || '').toString().toLowerCase();
 	var modelScheme = (commands.scheme || '').toString().toLowerCase();
 	var modelResolution = parseFloat(commands.resolution);
+	var modelDecompose = parseInt(commands.decompose, 10);
+	var modelDecomposeMethod;
+	var modelDecomposeOverlap;
+	var modelDecomposeForecastTarget;
 	var manningCoefficient = parseFloat(commands.manning);
 	var modelConstants = {};
 	
@@ -144,9 +157,42 @@ function getInfo (commands) {
 		return false;
 	}
 	
-	if (commands.decompose !== undefined) {
-		console.log('Sorry -- domain decomposition not yet supported.');
+	if (commands.decompose !== undefined  && (
+		!isFinite(modelDecompose) ||
+		isNaN(modelDecompose) ||
+		modelDecompose <= 0)) {
+		console.log('Sorry -- domain decomposition requirements are invalid.');
 		return false;
+	} else if (commands.decompose !== undefined) {
+		modelDecomposeMethod = (commands.decomposeMethod || '').toLowerCase();
+		modelDecomposeOverlap = parseInt(commands.decomposeOverlap, 10);
+		
+		if (modelDecomposeMethod !== 'timestep' &&
+		    modelDecomposeMethod !== 'forecast') {
+			console.log('Sorry -- the domain synchronisation method is invalid.');
+			return false;
+		}
+		
+		if (!commands.decomposeOverlap ||
+		    !isFinite(modelDecomposeOverlap) ||
+			isNaN(modelDecomposeOverlap) ||
+			modelDecomposeOverlap <= 0) {
+			console.log('Sorry -- the domain overlap is invalid.');
+			return false;
+		}
+		
+		if (modelDecomposeMethod === 'forecast') {
+			let decomposeTargetPercentage = getPercentage(commands.decomposeForecastTarget || '');
+			
+			if (!isFinite(decomposeTargetPercentage) ||
+				isNaN(decomposeTargetPercentage) ||
+				decomposeTargetPercentage <= 0) {
+				console.log('Sorry -- the domain forecast target spare size is invalid.');
+				return false;
+			}
+			
+			modelDecomposeForecastTarget = Math.min(modelDecomposeOverlap, Math.max(1, Math.round((decomposeTargetPercentage / 100) * modelDecomposeOverlap / 2)));
+		}
 	}
 	
 	if (commands.manning !== undefined && (
@@ -172,6 +218,10 @@ function getInfo (commands) {
 		domainType: modelDomainType,
 		domainResolution: modelResolution,
 		domainManningCoefficient: manningCoefficient,
+		domainDecompose: modelDecompose,
+		domainDecomposeMethod: modelDecomposeMethod,
+		domainDecomposeOverlap: modelDecomposeOverlap,
+		domainDecomposeForecastTarget: modelDecomposeForecastTarget,
 		constants: modelConstants
 	};
 }
@@ -258,14 +308,17 @@ program
 	.option('-d, --directory <dir>', 'target directory for model')
 	.option('-ns, --scheme [godunov|muscl-hancock]', 'numerical scheme to apply')
 	.option('-r, --resolution <resolution>', 'grid resolution in metres')
-	.option('-mc, --manning <coefficient>', 'energy loss Manning coefficient')
+	.option('-mc, --manning <coefficient>', 'Manning loss coefficient')
 	.option('-t, --time <duration>', 'duration of simulation')
 	.option('-of, --output-frequency <frequency>', 'raster output frequency')
 	.option('-dn, --decompose <domains>', 'decompose for multi-device')
+	.option('-do, --decompose-overlap <rows>', 'rows overlapping per divide')
+	.option('-dm, --decompose-method [timestep|forecast]', 'synchronisation method')
+	.option('-dt, --decompose-forecast-target <X%>', 'spare buffer for forecast')
 	.option('-ll, --lower-left <easting,northing>', 'lower left coordinates')
 	.option('-ur, --upper-right <easting,northing>', 'upper right coordinates')
-	.option('-w, --width <size>', 'domain width')
-	.option('-h, --height <size>', 'domain height')
+	.option('-w, --width <Xm>', 'domain width')
+	.option('-h, --height <Xm>', 'domain height')
 	.option('-ri, --rainfall-intensity <Xmm/hr>', 'rainfall intensity')
 	.option('-rd, --rainfall-duration <Xmins>', 'rainfall duration')
 	.option('-dr, --drainage <Xmm/hr>', 'drainage rate')

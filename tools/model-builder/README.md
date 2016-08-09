@@ -17,24 +17,28 @@ Currently only pluvial (surface water flooding) and numerical test case (analyti
 
   Options:
 
-    -h, --help                                output usage information
-    -V, --version                             output the version number
-    -n, --name <name>                         short name for the model
-    -s, --source [pluvial|fluvial|tidal|...]  type of model to construct
-    -d, --directory <dir>                     target directory for model
-    -ns, --scheme [godunov|muscl-hancock]     numerical scheme to apply
-    -r, --resolution <resolution>             grid resolution in metres
-    -mc, --manning <coefficient>              energy loss Manning coefficient
-    -t, --time <duration>                     duration of simulation
-    -of, --output-frequency <frequency>       raster output frequency
-    -dn, --decompose <domains>                decompose for multi-device
-    -ll, --lower-left <easting,northing>      lower left coordinates
-    -ur, --upper-right <easting,northing>     upper right coordinates
-    -w, --width <size>                        domain width
-    -h, --height <size>                       domain height
-    -ri, --rainfall-intensity <Xmm/hr>        rainfall intensity
-    -rd, --rainfall-duration <Xmins>          rainfall duration
-    -dr, --drainage <Xmm/hr>                  drainage rate
+    -h, --help                                   output usage information
+    -V, --version                                output the version number
+    -n, --name <name>                            short name for the model
+    -s, --source [pluvial|fluvial|tidal|...]     type of model to construct
+    -d, --directory <dir>                        target directory for model
+    -ns, --scheme [godunov|muscl-hancock]        numerical scheme to apply
+    -r, --resolution <resolution>                grid resolution in metres
+    -mc, --manning <coefficient>                 Manning loss coefficient
+    -t, --time <duration>                        duration of simulation
+    -of, --output-frequency <frequency>          raster output frequency
+    -dn, --decompose <domains>                   decompose for multi-device
+    -do, --decompose-overlap <rows>              rows overlapping per divide
+    -dm, --decompose-method [timestep|forecast]  synchronisation method
+    -dt, --decompose-forecast-target <X%>        spare buffer for forecast
+    -ll, --lower-left <easting,northing>         lower left coordinates
+    -ur, --upper-right <easting,northing>        upper right coordinates
+    -w, --width <Xm>                             domain width
+    -h, --height <Xm>                            domain height
+    -ri, --rainfall-intensity <Xmm/hr>           rainfall intensity
+    -rd, --rainfall-duration <Xmins>             rainfall duration
+    -dr, --drainage <Xmm/hr>                     drainage rate
+    -c, --constants <a=X,b=Y>                    override underlying constants
 ````
 
 ## Example for surface water flooding
@@ -73,6 +77,41 @@ You can load the topography and simulation results in a free GIS program such as
 The above image shows the problems caused by bridges, tunnels and culverts. On the university campus for example, flooding is exaggerated by the absence of a flow path where in reality there are paths underneath buildings, and by not representing a culverted river used as a sewer.
 
 With a reasonably modern GPU in your system, you can expect the simulation to take less than an hour to complete. Running on a CPU only is likely to take several hours.
+
+## Domain decomposition
+
+If you plan to run an extremely large simulation, there's a good chance you'll need to decompose the domain over multiple processing devices, either to avoid exhausting the memory on a single device, or to achieve the performance you require.
+
+The model builder can divide the domain automatically if you provide some additional options.
+
+* **--decompose=_N_** specifies how many times the domain should be divided, which is normally the same as the number of processing devices available in the system
+* **--decompose-overlap=_N_** defines the number of overlapping rows, which are required for synchronisation of data between the domains, but too many overlapping rows will result in redundant computation
+* **--decompose-method=_timestep|forecast_** specifies how the synchronisation is performend, which can either exchange the timestep between the domain at every iteration, or attempt to forecast an appropriate point in the future to synchronise at
+* **--decompose-forecast-target=_N%_** is required when using forecast synchronisation, and specifies how many of the rows should aim to be retained as 'spare' capacity, because in this mode if the synchronisation point is not reached within the number of iterations achievable with the overlap size, then the simulation must reverse itself and try again
+
+Generally speaking, timestep synchronisation is the most reliable method but requires frequent host bus transfers, so is unlikely to deliver huge performance benefits. Forecast mode synchronisation is preferable, but you could run into problems in simulations where the timesteps frequently vary, making it difficult to forecast an appropriate point for synchronisation.
+
+````
+hipims-mb --name="Newcastle-upon-Tyne Centre"
+          --source=pluvial 
+          --time="3 hours" 
+          --output-frequency="15 minutes" 
+          --directory=models/newcastle-centre 
+          --lower-left=423417,564273 
+          --upper-right=426189,565719 
+          --rainfall-intensity=80mm/hr 
+          --rainfall-duration=60mins 
+          --manning=0.02
+          --drainage=12mm/hr
+          --decompose=2
+          --decompose-method=forecast
+          --decompose-overlap=50
+          --decompose-forecast-target=50%
+````
+
+As an example, if using forecast synchronisation with an overlap of 100 rows, then each domain must achieve the forecasted synchronisation point within 49 iterations, otherwise the errors could not be corrected for. Setting a 50% target will make the simulation aim to keep half of these rows spare, because future timesteps are dependent on the hydrodynamics at that point, and could vary wildly.
+
+**All domain decomposition functionality is a work in progress**, and the methods have yet to be peer reviewed and published.
 
 ## Example for numerical tests
 A suite of numerical test cases are being developed, which can be used as part of the development process for automated testing. These test cases also form the basis for some of the published work detailing HiPIMS, such as providing evidence that the domain decomposition is not adversely affecting the quality of the results.
