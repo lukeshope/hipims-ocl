@@ -314,7 +314,7 @@ Model.prototype.getXMLFile = function() {
 		
 		if (this.domainDecomposeForecastTarget && this.domainDecomposeForecastTarget > 0.0) {
 			xmlSchemeOptions += '						<parameter name="queueMode" value="fixed" />\n';
-			xmlSchemeOptions += '						<parameter name="queueSize" value="' + Math.round(this.domainDecomposeOverlap / 2 - this.domainDecomposeForecastTarget) + '" />\n';
+			xmlSchemeOptions += '						<parameter name="queueSize" value="' + Math.round(this.domainDecomposeOverlap / 2) + '" />\n';
 		}
 		
 		xml += '\
