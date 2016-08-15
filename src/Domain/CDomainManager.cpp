@@ -483,8 +483,9 @@ void	CDomainManager::logDetails()
 	for (unsigned int i = 0; i < this->getDomainCount(); i++)
 	{
 		char cDomainLine[70] = "                                                                    X";
-
 		CDomainBase::DomainSummary pSummary = this->getDomainBase(i)->getSummary();
+		std::string resolutionShort = toString(pSummary.dResolution);
+		resolutionShort.resize(5);
 
 		sprintf(
 			cDomainLine,
@@ -500,7 +501,7 @@ void	CDomainManager::logDetails()
 			toString(pSummary.ulColCount).c_str(),
 			(pSummary.ucFloatPrecision == model::floatPrecision::kSingle ? std::string("32bit") : std::string("64bit")).c_str(),
 			toString(this->getDomainBase(i)->getLinkCount()).c_str(),
-			toString(pSummary.dResolution).c_str()
+			toString(resolutionShort).c_str()
 		);
 
 		pManager->log->writeLine(std::string(cDomainLine), false, wColour);	// 13

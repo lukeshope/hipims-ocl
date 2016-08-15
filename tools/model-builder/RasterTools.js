@@ -352,7 +352,7 @@ RasterTools.prototype.arrayToRaster = function (targetFile, format, extent, reso
 	let targetPixels = targetBand.pixels;
 	targetBand.noDataValue = noDataValue;
 	for (let y = 0; y < targetSizeY; y++) {
-		let rowData = new Float32Array(Array.prototype.slice.call(outputArray, y * targetSizeY, (y + 1) * targetSizeY));
+		let rowData = new Float32Array(Array.prototype.slice.call(outputArray, y * targetSizeX, (y + 1) * targetSizeX));
 		targetPixels.write(0, targetSizeY - y - 1, targetSizeX, 1, rowData);
 	}
 	targetDataset.flush();

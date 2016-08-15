@@ -1,3 +1,5 @@
+@echo off
+
 echo Setting environment variables...
 
 set BOOST_BASE_DIR="C:\Luke Smith\HydFPE\Libraries\Boost\"

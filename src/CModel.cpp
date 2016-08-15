@@ -818,7 +818,7 @@ void	CModel::runModelSync()
 			// for either domain sync/rollbacks or to write outputs
 			if ( 
 					( domains->getDomainCount() > 1 && this->getDomainSet()->getSyncMethod() == model::syncMethod::kSyncForecast ) ||
-					( fmod(this->dCurrentTime, pManager->getOutputFrequency()) < 1E-5 && this->dCurrentTime > dLastOutputTime ) 
+					( fabs(this->dCurrentTime - dLastOutputTime - pManager->getOutputFrequency()) < 1E-5 && this->dCurrentTime > dLastOutputTime ) 
 			   )
 			{
 #ifdef DEBUG_MPI
@@ -872,8 +872,7 @@ void	CModel::runModelOutputs()
 	if ( bRollbackRequired ||
 		 !bSynchronised ||
 		 !bAllIdle ||
-		 !( fmod(this->dCurrentTime, pManager->getOutputFrequency()) < 1E-5 && 
-		    this->dCurrentTime > dLastOutputTime ) )
+		 !( fabs(this->dCurrentTime - dLastOutputTime - pManager->getOutputFrequency()) < 1E-5 && this->dCurrentTime > dLastOutputTime) )
 		return;
 
 	this->writeOutputs();

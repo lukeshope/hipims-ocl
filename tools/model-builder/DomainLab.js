@@ -18,7 +18,9 @@ const validationFiles = {
 	'getDepthAtTime': 'TEST_VALIDATION_DEPTH_%t.img',
 	'getFSLAtTime': 'TEST_VALIDATION_FSL_%t.img',
 	'getVelocityXAtTime': 'TEST_VALIDATION_VELX_%t.img',
-	'getVelocityYAtTime': 'TEST_VALIDATION_VELY_%t.img'
+	'getVelocityYAtTime': 'TEST_VALIDATION_VELY_%t.img',
+	'getFrontPositionAtTime': 'TEST_FRONT_LOCATION_%t.img',
+	'getFrontVelocityAtTime': 'TEST_FRONT_VELOCITY_%t.img'
 };
 
 function DomainLab (parentModel, cb) {
@@ -105,7 +107,7 @@ DomainLab.prototype.domainPrepare = function (cb) {
 	for (let validationFile in validationFiles) {
 		for (let time = this.parentModel.getOutputFrequency(); time <= this.parentModel.getDuration(); time += this.parentModel.getOutputFrequency()) {
 			let domainData = testDefinition[validationFile].call(testDefinition, domainSizeX, domainSizeY, domainResolution, time);
-			let domainTarget = validationFiles[validationFile].replace('%t', time.toString());
+			let domainTarget = validationFiles[validationFile].replace('%t', parseFloat(time.toFixed(5)));	// Cap decimal places at 5
 			if (domainData) {
 				console.log('    This test provides an output validation file ' + domainTarget);
 				fileCount++;
