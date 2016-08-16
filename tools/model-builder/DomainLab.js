@@ -7,7 +7,7 @@ var downloadTools = require('./DownloadTools');
 
 const domainFiles = {
 	'getTopography': 'TEST_DOMAIN_DTM.img',
-	'getManningCoefficient': 'TEST_DOMAIN_MANNING.img',
+	'getVaryingManningCoefficient': 'TEST_DOMAIN_MANNING.img',
 	'getInitialDepth': 'TEST_DOMAIN_DEPTH.img',
 	'getInitialFSL': 'TEST_DOMAIN_FSL.img',
 	'getInitialVelocityX': 'TEST_DOMAIN_VELX.img',

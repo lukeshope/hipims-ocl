@@ -62,12 +62,36 @@ Support files created for the test case are:
 * **Validation depth** at the output intervals, which should be the same as the initial depth
 
 ## Dam-break flow against an isolated obstacle
-This test is a work in progress.
+This is a laboratory example, conducted in a flume, with depth and velocity measured. A dam break is created against a single isolated building at a 64 degree angle to the flow. The building is impacted after approximately 3 seconds.
+
+![Laboratory experiment design for dam break against an obstacle](/tools/model-builder/tests/images/dam-break-obstacle-layout.png?raw=true "Laboratory experiment design for dam break against an obstacle")
+
+Use of this test case requires acknowledgement of the authors' work in providing the results, as per [their instructions](/tools/model-builder/tests/resources/dam-break-against-obstacle/Readme.txt).
+
+The dimensions of this test case cannot be specified, but the grid resolution may be changed. 
+
+````
+hipims-mb --name="Dam break against an obstacle"
+          --source=laboratory
+          --directory="models/dam-break-against-obstacle"
+          --resolution=0.02
+          --time="30 seconds"
+          --output-frequency="1 second"
+          --scheme=muscl-hancock
+````
+
+Comprehensive details are provided in Soares-Frazão, S. and Zech, Y. (2007) [Experimental study of dam-break flow against an isolated obstacle](http://dx.doi.org/10.1080/00221686.2007.9521830), _Journal of Hydraulic Research_, 45:sup1:27-36.
+
+![Example results for depth after 3 seconds](/tools/model-builder/tests/images/dam-break-obstacle-depth-example.png?raw=true "Example results for depth after 3 seconds")
+
+![Example results for velocity after 3 seconds](/tools/model-builder/tests/images/dam-break-obstacle-velocity-example.png?raw=true "Example results for velocity after 3 seconds")
+
+There are no support files created by the model builder, but the experimental results [are located here](/tools/model-builder/tests/resources/dam-break-against-obstacle/).
 
 ## Dam-break over an emerging bed
 Used to test the software's ability to capture shocks and deal with a moving wet-dry front. Expect a difference between the analytically-derived front location, and the simulation, regardless of the numerical scheme used. The second-order accurate MUSCL-Hancock scheme employed in HiPIMS will fall back to providing a first-order solution at wet-dry fronts, therefore has limited effect in this test case.
 
-![Example results for dam break over an emerging bed](/tools/model-builder/tests/dam-break-emerging-bed-example.png?raw=true "Example results for dam break over an emerging bed")
+![Example results for dam break over an emerging bed](/tools/model-builder/tests/images/dam-break-emerging-bed-example.png?raw=true "Example results for dam break over an emerging bed")
 
 ````
 hipims-mb --name="Dam break over an emerging bed"

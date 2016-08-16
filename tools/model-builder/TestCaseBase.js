@@ -41,11 +41,15 @@ TestCaseBase.prototype.getManningCoefficient = function () {
 	return null;
 }
 
+TestCaseBase.prototype.getVaryingManningCoefficient = function () {
+	return null;
+}
+
 TestCaseBase.prototype.getTopography = function (domainSizeX, domainSizeY, domainResolution) {
 	return null;
 }
 
-TestCaseBase.prototype.getManningCoefficient = function (domainSizeX, domainSizeY, domainResolution) {
+TestCaseBase.prototype.getVaryingManningCoefficient = function (domainSizeX, domainSizeY, domainResolution) {
 	return null;
 }
 

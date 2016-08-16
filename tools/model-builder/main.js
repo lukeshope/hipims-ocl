@@ -270,6 +270,7 @@ function getExtent (modelInfo, commands) {
 		urCoords = [width, height];
 	}
 	
+	if (!llCoords || !urCoords) return new Extent(0.0, 0.0, 0.0, 0.0);
 	return new Extent(llCoords[0], llCoords[1], urCoords[0], urCoords[1]);
 }
 
@@ -293,7 +294,7 @@ function getBoundaries (modelInfo, commands) {
 			rainfallDuration: rainfallDuration,
 			drainageRate: drainageRate
 		});
-	} else if (modelInfo.source === 'analytical') {
+	} else if (modelInfo.source === 'analytical' || modelInfo.source === 'laboratory') {
 		return new Boundaries({});
 	} else {
 		console.log('Cannot prepare boundaries for this type of model.');
