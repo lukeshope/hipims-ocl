@@ -836,6 +836,8 @@ void* CMPIManager::Threaded_processCollective_Launch(void* param)
  */
 void	CMPIManager::Threaded_processCollective()
 {
+	double *dReturn = new double;
+
 	while ( this->bCollectiveThreadRun )
 	{
 		if ( this->bCollective_Reduction )
@@ -843,7 +845,7 @@ void	CMPIManager::Threaded_processCollective()
 			wrapError(
 				MPI_Allreduce(
 					&this->dCollective_ReductionInput,
-					this->dCollective_ReductionReturn,
+					dReturn,
 					1,
 					MPI_DOUBLE,
 					MPI_MIN,
@@ -851,16 +853,18 @@ void	CMPIManager::Threaded_processCollective()
 				)
 			);
 
-			if ( *this->dCollective_ReductionReturn <= -9999 )
+			if ( *this->dCollective_ReductionReturn < 0.0 )
 			{
 #ifdef DEBUG_MPI
 				pManager->log->writeLine( "[DEBUG] Repeating reduction as a global block interfered." );
+				this->bCollective_Barrier 	= false;
 #endif
 			} else {
 #ifdef DEBUG_MPI
 				pManager->log->writeLine( "[DEBUG] Finished an all reduction: " + toString( *this->dCollective_ReductionReturn ) );
 #endif
 				this->dCollective_ReductionInput = *this->dCollective_ReductionReturn;
+				*this->dCollective_ReductionReturn = *dReturn;
 				this->bCollective_Reduction = false;
 			}
 		}
@@ -869,7 +873,6 @@ void	CMPIManager::Threaded_processCollective()
 		if ( this->bCollective_Barrier )
 		{
 			double dInput = -9999.9;
-			double dReturn;
 			wrapError(
 				MPI_Allreduce(
 					&dInput,
@@ -880,7 +883,7 @@ void	CMPIManager::Threaded_processCollective()
 					MPI_COMM_WORLD
 				)
 			);
-			this->bCollective_Barrier 	= false;
+			this->bCollective_Barrier = *dReturn >= 0.0;
 		}
 		
 		// Allow simulation to progress
@@ -890,6 +893,8 @@ void	CMPIManager::Threaded_processCollective()
 			this->bCollective_Hold = false;
 		}
 	}
+
+	delete dReturn;
 }
 
 #endif
