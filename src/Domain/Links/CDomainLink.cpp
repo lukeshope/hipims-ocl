@@ -77,18 +77,27 @@ bool CDomainLink::canLink(CDomainBase* pA, CDomainBase* pB)
 
 	// Cannot link two remote domains (as there's no need)
 	if ( !pSumA.bAuthoritative && !pSumB.bAuthoritative )
+	{
+		//pManager->log->writeLine("[DEBUG] Cannot link non-authorative.");
 		return false;
+	}
 
 	// Do the two domains overlap at all?
 	// N/S axis
 	if ( ( pSumA.dEdgeNorth >= pSumB.dEdgeNorth && pSumA.dEdgeSouth >= pSumB.dEdgeNorth ) ||
 		 ( pSumA.dEdgeNorth <= pSumB.dEdgeSouth && pSumA.dEdgeSouth <= pSumB.dEdgeSouth ) )
-		return false;
+	{
+                //pManager->log->writeLine("[DEBUG] Cannot link non-overlapping N/S.");
+                return false;
+        }
 
 	// E/W axis
 	if ( pSumA.dEdgeWest >= pSumB.dEdgeEast &&
 		 pSumA.dEdgeEast <= pSumB.dEdgeWest )
-		return false;
+	{
+                //pManager->log->writeLine("[DEBUG] Cannot link non-overlapping E/W.");
+                return false;
+        }
 
 	// Are the two domains identical?
 	// NOTE: This would just be daft...
@@ -96,20 +105,32 @@ bool CDomainLink::canLink(CDomainBase* pA, CDomainBase* pB)
 		 pSumA.dEdgeWest  == pSumB.dEdgeWest &&
 		 pSumA.dEdgeNorth == pSumB.dEdgeNorth &&
 		 pSumA.dEdgeSouth == pSumB.dEdgeSouth )
-		return false;
+	{
+                //pManager->log->writeLine("[DEBUG] Cannot link identical.");
+                return false;
+        }
 
 	// Are the two resolutions the same?
 	// TODO: Add support for mixed-resolution syncing at a later date
 	if ( pSumA.dResolution != pSumB.dResolution )
-		return false;
+	{
+                //pManager->log->writeLine("[DEBUG] Cannot link mismatched resolutions.");
+                return false;
+        }
 
 	// Are the two domains aligned (or at least roughly aligned)...
 	// Limit the misalignment to 1/10 of the resolution, but even this would cause problems
 	// for mass conservation...
-	if (fmod(fabs(pSumA.dEdgeSouth - pSumB.dEdgeSouth), pSumA.dResolution) > 0.1 * pSumA.dResolution)
-		return false;
-	if (fmod(fabs(pSumA.dEdgeEast - pSumB.dEdgeWest), pSumA.dResolution) > 0.1 * pSumA.dResolution)
-		return false;
+	if (remainder(fabs(pSumA.dEdgeNorth - pSumB.dEdgeSouth), pSumA.dResolution) > 0.1 * pSumA.dResolution)
+	{
+                //pManager->log->writeLine("[DEBUG] Cannot link non-aligned N/S.");
+                return false;
+        }
+	if (remainder(fabs(pSumA.dEdgeEast - pSumB.dEdgeWest), pSumA.dResolution) > 0.1 * pSumA.dResolution)
+	{
+                //pManager->log->writeLine("[DEBUG] Cannot link non-aligned E/W.");
+                return false;
+        }
 
 	return true;
 }

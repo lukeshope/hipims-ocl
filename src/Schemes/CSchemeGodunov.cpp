@@ -1415,9 +1415,9 @@ void	CSchemeGodunov::runSimulation( double dTargetTime, double dRealTime )
 		 ( this->uiIterationsSinceSync >= pDomain->getRollbackLimit() ||
 		   dTargetTime - this->dCurrentTime <= 1E-5 ) )
 		 bDownloadLinks = true;
-		 
+
 	// Calculate a new batch size
-	if (  this->bAutomaticQueue		&& 
+	if (  this->bAutomaticQueue		&&
 		 !this->bDebugOutput		&&
 		  dRealTime > 1E-5          &&
 		  pManager->getDomainSet()->getSyncMethod() != model::syncMethod::kSyncTimestep)
@@ -1425,7 +1425,12 @@ void	CSchemeGodunov::runSimulation( double dTargetTime, double dRealTime )
 			// We're aiming for a seconds worth of work to be carried out
 			double dBatchDuration = dRealTime - dBatchStartedTime;
 			unsigned int uiOldQueueAdditionSize = this->uiQueueAdditionSize;
-			this->uiQueueAdditionSize = static_cast<unsigned int>(max(static_cast<unsigned int>(1), min(this->uiBatchRate * 3, static_cast<unsigned int>(ceil(1.0 / (dBatchDuration / static_cast<double>(this->uiQueueAdditionSize)))))));
+
+			if (pManager->getDomainSet()->getDomainCount() > 1) {
+				this->uiQueueAdditionSize = static_cast<unsigned int>((dTargetTime - dCurrentTime) / (dBatchTimesteps / static_cast<double>(uiBatchSuccessful)) + 1.0);
+			} else {
+				this->uiQueueAdditionSize = static_cast<unsigned int>(max(static_cast<unsigned int>(1), min(this->uiBatchRate * 3, static_cast<unsigned int>(ceil(1.0 / (dBatchDuration / static_cast<double>(this->uiQueueAdditionSize)))))));
+			}
 
 			// Stop silly jumps in the queue addition size
 			if (this->uiQueueAdditionSize > uiOldQueueAdditionSize * 2 &&

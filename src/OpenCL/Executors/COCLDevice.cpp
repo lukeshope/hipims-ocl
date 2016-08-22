@@ -389,6 +389,12 @@ void	COCLDevice::blockUntilFinished()
 	this->bBusy = true;
 	clFlush( this->clQueue );
 	clFinish( this->clQueue );
+	/*
+	if (clMarkerEvent != NULL) {
+		clReleaseEvent(clMarkerEvent);
+		clMarkerEvent = NULL;
+	}
+	*/
 	this->bBusy = false;
 }
 
@@ -417,6 +423,8 @@ void CL_CALLBACK COCLDevice::defaultCallback( cl_event clEvent, cl_int iStatus, 
 void COCLDevice::flushAndSetMarker()
 {
 	this->bBusy	= true;
+	clFlush(clQueue);
+	return;
 
 #ifdef USE_SIMPLE_ARCH_OPENCL
 	this->blockUntilFinished();

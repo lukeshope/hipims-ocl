@@ -836,15 +836,22 @@ void* CMPIManager::Threaded_processCollective_Launch(void* param)
  */
 void	CMPIManager::Threaded_processCollective()
 {
+	double *dInput = new double;
 	double *dReturn = new double;
 
 	while ( this->bCollectiveThreadRun )
 	{
-		if ( this->bCollective_Reduction )
+		if ( this->bCollective_Reduction || this->bCollective_Barrier )
 		{
+			if (this->bCollective_Barrier) {
+				*dInput = -9999.9;
+			} else {
+				*dInput = this->dCollective_ReductionInput;
+			}
+
 			wrapError(
 				MPI_Allreduce(
-					&this->dCollective_ReductionInput,
+					dInput,
 					dReturn,
 					1,
 					MPI_DOUBLE,
@@ -853,40 +860,23 @@ void	CMPIManager::Threaded_processCollective()
 				)
 			);
 
-			if ( *this->dCollective_ReductionReturn < 0.0 )
+			if (*dInput < 0.0 && *dReturn < 0.0)
 			{
-#ifdef DEBUG_MPI
-				pManager->log->writeLine( "[DEBUG] Repeating reduction as a global block interfered." );
-				this->bCollective_Barrier 	= false;
-#endif
-			} else {
-#ifdef DEBUG_MPI
-				pManager->log->writeLine( "[DEBUG] Finished an all reduction: " + toString( *this->dCollective_ReductionReturn ) );
-#endif
+				//pManager->log->writeLine("[DEBUG] Barrier satisfied.");
+				this->bCollective_Barrier = false;
+			} else if (*dReturn >= 0.0) {
+				//pManager->log->writeLine("[DEBUG] No barrier, reducing time data received.");
 				this->dCollective_ReductionInput = *this->dCollective_ReductionReturn;
 				*this->dCollective_ReductionReturn = *dReturn;
 				this->bCollective_Reduction = false;
-			}
+			} /* else if (*dInput > 0.0) {
+				//pManager->log->writeLine("[DEBUG] Unexpected barrier received.");
+				//this->bCollective_Barrier = true;
+			} else {
+				//pManager->log->writeLine("[DEBUG] Uncaught scenario ignored: " + toString(*dInput) + ", " + toString(*dReturn));
+			} */
 		}
-	
-		// Wait until all on the COMM are sync'd then set the flag back
-		if ( this->bCollective_Barrier )
-		{
-			double dInput = -9999.9;
-			wrapError(
-				MPI_Allreduce(
-					&dInput,
-					&dReturn,
-					1,
-					MPI_DOUBLE,
-					MPI_MIN,
-					MPI_COMM_WORLD
-				)
-			);
-			this->bCollective_Barrier = *dReturn >= 0.0;
-		}
-		
-		// Allow simulation to progress
+
 		if ( !this->bCollective_Barrier &&
 		     !this->bCollective_Reduction )
 		{
@@ -894,6 +884,7 @@ void	CMPIManager::Threaded_processCollective()
 		}
 	}
 
+	delete dInput;
 	delete dReturn;
 }
 
