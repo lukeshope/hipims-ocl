@@ -9,12 +9,12 @@ var rasterTools = require('./RasterTools');
 var downloadTools = require('./DownloadTools');
 var zipTools = require('./ZipTools');
 
-const apiEndpointEA = 'http://www.geostore.com/environment-agency/rest/product/OS_GB_10KM/';
+const apiEndpointEA = 'http://www.geostore.com/environment-agency/rest/product/EA_SUPPLIED_OS_10KM/';
 const apiDownloadEA = 'http://www.geostore.com/environment-agency/rest/product/download/';
 const apiDownloadNRW = '';
 
-const apiMatchEAFilenameDTM = /LIDAR-DTM-2M-[A-Z][A-Z][0-9][0-9]\.zip/;
-const apiMatchEAFilenameDEM = /LIDAR-DSM-2M-[A-Z][A-Z][0-9][0-9]\.zip/;
+const apiMatchEAFilenameDTM = /LIDAR-DTM-2M-[A-Z][A-Z][0-9][0-9]([a-z]{2})?\.zip/;
+const apiMatchEAFilenameDEM = /LIDAR-DSM-2M-[A-Z][A-Z][0-9][0-9]([a-z]{2})?\.zip/;
 
 function BngTile (tileName) {
 	this.tileName = tileName;
@@ -31,7 +31,7 @@ function BngTile (tileName) {
 BngTile.prototype.assessState = function () {
 	var assessmentTotal = 3;
 	var assessmentCount = 0;
-	glob(downloadTools.getDirectoryPath() + this.tileName + '_D?M_*.zip', (err, files) => {
+	glob(downloadTools.getDirectoryPath() + this.tileName + '*_D?M_*.zip', (err, files) => {
 		this.tileDownloaded = files.length >= 2; assessmentCount++; assessmentNext()
 	});
 	this.assessPaths([
@@ -99,7 +99,7 @@ BngTile.prototype.prepareForUse = function () {
 BngTile.prototype.download = function () {
 	console.log('    Attempting to download tile ' + this.tileName + '...');
 	
-	request(apiEndpointEA + this.tileName, (e, r, b) => {
+	request(apiEndpointEA + this.tileName + '?catalogName=Survey', (e, r, b) => {
 		if (r.statusCode !== 200) {
 			console.log('    Request returned status code ' + r.statusCode + '.');
 			return;
@@ -123,9 +123,10 @@ BngTile.prototype.downloadStartFiles = function (jsonText, source) {
 			if (dataset.fileName.match(apiMatchEAFilenameDTM) !== null || dataset.fileName.match(apiMatchEAFilenameDEM) !== null) {
 				this.tileDownloadFilesTotal++;
 				console.log('    Dataset ' + dataset.guid + ' provides required data.');
+				var eaTileName = dataset.fileName.match(/[A-Z]{2}[0-9]{2}([a-z]{2})?/)[0];
 				downloadTools.pushToQueue(
 					apiDownloadEA + dataset.guid,
-					this.tileName + '_' + (dataset.fileName.match(apiMatchEAFilenameDTM) !== null ? 'DTM' : 'DEM') + '_' + source + '.zip',
+					eaTileName + '_' + (dataset.fileName.match(apiMatchEAFilenameDTM) !== null ? 'DTM' : 'DEM') + '_' + source + '.zip',
 					this.downloadEndFile.bind(this)
 				);
 			}
@@ -157,7 +158,7 @@ BngTile.prototype.downloadFinished = function () {
 BngTile.prototype.extract = function () {
 	console.log('    Attempting to extract tile ' + this.tileName + '...');
 	
-	glob(downloadTools.getDirectoryPath() + this.tileName + '_D?M_*.zip', (err, files) => {
+	glob(downloadTools.getDirectoryPath() + this.tileName + '*_D?M_*.zip', (err, files) => {
 		this.tileExtractFilesTotal = files.length;
 		this.tileExtractFilesFinished = 0;
 		
@@ -170,7 +171,11 @@ BngTile.prototype.extract = function () {
 		};
 		
 		files.forEach((file) => {
-			zipTools.extract(path.basename(file), onExtracted);
+			zipTools.extract(
+				path.basename(file),
+				onExtracted,
+                downloadTools.getDirectoryPath() + path.basename(file).replace(/[a-z]+/, '').replace(/_[A-Z]+\..+$/, '')
+			);
 		});
 	});
 };
