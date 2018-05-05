@@ -228,6 +228,10 @@ void COCLKernel::prepareKernel()
 			"Could not prepare the kernel to run on device #" + toString( this->program->device->uiDeviceNo ) + ".",
 			model::errorCodes::kLevelModelStop
 		);
+                model::doError(
+                        " Error code: " + toString( iErrorID ),
+                        model::errorCodes::kLevelModelStop
+                );
 		return;
 	}
 

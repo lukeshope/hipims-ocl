@@ -425,12 +425,12 @@ bool	CDomainCartesian::validateDomain( bool bQuiet )
 	}
 
 	// Got a size?
-	if ( ( isnan( this->dRealDimensions[ kAxisX ] ) || 
-		   isnan( this->dRealDimensions[ kAxisY ] ) ) &&
-		 ( isnan( this->dRealExtent[ kEdgeN ] ) || 
-		   isnan( this->dRealExtent[ kEdgeE ] ) || 
-		   isnan( this->dRealExtent[ kEdgeS ] ) || 
-		   isnan( this->dRealExtent[ kEdgeW ] ) ) )
+	if ( ( std::isnan( this->dRealDimensions[ kAxisX ] ) || 
+		   std::isnan( this->dRealDimensions[ kAxisY ] ) ) &&
+		 ( std::isnan( this->dRealExtent[ kEdgeN ] ) || 
+		   std::isnan( this->dRealExtent[ kEdgeE ] ) || 
+		   std::isnan( this->dRealExtent[ kEdgeS ] ) || 
+		   std::isnan( this->dRealExtent[ kEdgeW ] ) ) )
 	{
 		if ( !bQuiet ) model::doError(
 			"Domain extent not defined",
@@ -440,8 +440,8 @@ bool	CDomainCartesian::validateDomain( bool bQuiet )
 	}
 
 	// Got an offset?
-	if ( isnan( this->dRealOffset[ kAxisX ] ) ||
-		 isnan( this->dRealOffset[ kAxisY ] ) )
+	if ( std::isnan( this->dRealOffset[ kAxisX ] ) ||
+		 std::isnan( this->dRealOffset[ kAxisY ] ) )
 	{
 		if ( !bQuiet ) model::doError(
 			"Domain offset not defined",
@@ -642,12 +642,12 @@ void	CDomainCartesian::updateCellStatistics()
 	}
 
 	// Got a size?
-	if ( ( isnan( this->dRealDimensions[ kAxisX ] ) || 
-		   isnan( this->dRealDimensions[ kAxisY ] ) ) &&
-		 ( isnan( this->dRealExtent[ kEdgeN ] ) || 
-		   isnan( this->dRealExtent[ kEdgeE ] ) || 
-		   isnan( this->dRealExtent[ kEdgeS ] ) || 
-		   isnan( this->dRealExtent[ kEdgeW ] ) ) )
+	if ( ( std::isnan( this->dRealDimensions[ kAxisX ] ) || 
+		   std::isnan( this->dRealDimensions[ kAxisY ] ) ) &&
+		 ( std::isnan( this->dRealExtent[ kEdgeN ] ) || 
+		   std::isnan( this->dRealExtent[ kEdgeE ] ) || 
+		   std::isnan( this->dRealExtent[ kEdgeS ] ) || 
+		   std::isnan( this->dRealExtent[ kEdgeW ] ) ) )
 	{
 		return;
 	}

@@ -1,41 +1,42 @@
 {
-	"name": "hipims-model-builder",
-	"version": "0.0.1",
-	"description": "A tool to automate model building for the HiPIMS simulation software.",
-	"author": "Luke Smith <luke@smith.ac>",
-	"contributors": [{
-		"name": "Qiuhua Liang",
-		"email": "qiuhua.liang@ncl.ac.uk"
-	}],
-	"bin": {
-		"hipims-mb": "./main.js"
-	},
-	"scripts": {
-		"start": "node main.js"
-	},
-	"main": "lib/foo.js",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/lukessmith/hipims-ocl"
-	},
-	"bugs": {
-		"url": "https://github.com/lukessmith/hipims-ocl/issues"
-	},
-	"keywords": [
-		"flood",
-		"simulation",
-		"lidar"
-	],
-	"dependencies": {
-		"gdal": "*",
-		"unzip": "*",
-		"glob": "*",
-		"commander": "*"
-	},
-	"devDependencies": {
-		
-	},
-	"preferGlobal": true,
-	"private": true,
-	"license": "GPL3"
+  "name": "hipims-model-builder",
+  "version": "0.0.1",
+  "description": "A tool to automate model building for the HiPIMS simulation software.",
+  "author": "Luke Smith <luke@smith.ac>",
+  "contributors": [
+    {
+      "name": "Qiuhua Liang",
+      "email": "qiuhua.liang@ncl.ac.uk"
+    }
+  ],
+  "bin": {
+    "hipims-mb": "./main.js"
+  },
+  "scripts": {
+    "start": "node main.js"
+  },
+  "main": "lib/foo.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lukessmith/hipims-ocl"
+  },
+  "bugs": {
+    "url": "https://github.com/lukessmith/hipims-ocl/issues"
+  },
+  "keywords": [
+    "flood",
+    "simulation",
+    "lidar"
+  ],
+  "dependencies": {
+    "commander": "*",
+    "gdal": "*",
+    "glob": "*",
+    "request": "^2.85.0",
+    "unzip": "*"
+  },
+  "devDependencies": {},
+  "preferGlobal": true,
+  "private": true,
+  "license": "GPL3"
 }
