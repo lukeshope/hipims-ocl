@@ -41,7 +41,8 @@ namespace types { enum types {
 	kBndyTypeAtmospheric,
 	kBndyTypeCopy,
 	kBndyTypeReflective,		// -- Put the gridded types after this
-	kBndyTypeAtmosphericGrid
+	kBndyTypeAtmosphericGrid,
+	kBndyTypeSimplePipe
 }; }
 
 namespace depthValues { enum depthValues {

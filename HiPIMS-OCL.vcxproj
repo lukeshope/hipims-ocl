@@ -14,12 +14,13 @@
     <ProjectGuid>{FA97D6E4-0814-4983-9252-EB9C2D5A4216}</ProjectGuid>
     <Keyword>MakeFileProj</Keyword>
     <ProjectName>HiPIMS Simulator</ProjectName>
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -45,8 +46,8 @@
     <IntDir>$(SolutionDir)\build\</IntDir>
     <OutDir>$(SolutionDir)\bin\win32\debug\</OutDir>
     <TargetName>hipims_debug</TargetName>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(AMDAPPSDKROOT)\include;$(INTELOCLSDKROOT)\include;$(BOOST_INCLUDE_DIR);$(GDAL_INCLUDE_CORE_DIR);$(GDAL_INCLUDE_PORT_DIR);$(CUDA_PATH)\include\</IncludePath>
-    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(AMDAPPSDKROOT)\lib\x86;$(INTELOCLSDKROOT)\lib\x86;$(BOOST_LIB_DIR_DEBUG);$(GDAL_LIB_DIR_DEBUG);$(CUDA_PATH)\lib\Win32\</LibraryPath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(AMDAPPSDKROOT)\include;$(INTELOCLSDKROOT)\include;$(BOOST_INCLUDE_DIR);$(GDAL_INCLUDE_CORE_DIR);$(GDAL_INCLUDE_PORT_DIR);$(GDAL_INCLUDE_PORT_DIR)/../ogr/;$(CUDA_PATH)\include\;${OCL_ROOT}\include\;C:\Program Files (x86)\OCL_SDK_Light\include\</IncludePath>
+    <LibraryPath>$(CUDA_PATH)\lib\Win32\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(AMDAPPSDKROOT)\lib\x86;$(INTELOCLSDKROOT)\lib\x86;$(BOOST_LIB_DIR_DEBUG);$(GDAL_LIB_DIR_DEBUG);${OCL_ROOT}\lib\x86\;C:\Program Files (x86)\OCL_SDK_Light\lib\x86\</LibraryPath>
     <CustomBuildBeforeTargets>
     </CustomBuildBeforeTargets>
   </PropertyGroup>
@@ -122,6 +123,7 @@
     <ClCompile Include="src\boundaries\CBoundaryMap.cpp" />
     <ClCompile Include="src\boundaries\CBoundaryUniform.cpp" />
     <ClCompile Include="src\CModel.cpp" />
+    <ClCompile Include="src\Boundaries\CBoundarySimplePipe.cpp" />
     <ClCompile Include="src\datasets\CCSVDataset.cpp" />
     <ClCompile Include="src\datasets\CRasterDataset.cpp" />
     <ClCompile Include="src\datasets\CXMLDataset.cpp" />
@@ -160,6 +162,7 @@
     <ClInclude Include="src\CLCode.h" />
     <ClInclude Include="src\CModel.h" />
     <ClInclude Include="src\common.h" />
+    <ClInclude Include="src\Boundaries\CBoundarySimplePipe.h" />
     <ClInclude Include="src\datasets\CCSVDataset.h" />
     <ClInclude Include="src\datasets\CRasterDataset.h" />
     <ClInclude Include="src\datasets\CXMLDataset.h" />
