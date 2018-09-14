@@ -323,8 +323,9 @@ void	CModel::writeOutputs()
  */
 void	CModel::setFloatPrecision( unsigned char ucPrecision )
 {
-	if ( !pManager->getExecutor()->getDevice()->isDoubleCompatible() )
-		ucPrecision = model::floatPrecision::kSingle;
+	// Device constraints on capabilities should be handled elsewhere
+	// if ( !pManager->getExecutor()->getDevice()->isDoubleCompatible() )
+	// 	ucPrecision = model::floatPrecision::kSingle;
 
 	this->bDoublePrecision = ( ucPrecision == model::floatPrecision::kDouble );
 }

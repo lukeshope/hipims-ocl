@@ -81,8 +81,8 @@ void CBoundaryMap::applyBoundaries(COCLBuffer* pCellBuffer)
 }
 
 /*
-*	Stream the buffer (i.e. prepare resources for the current time period)
-*/
+ *	Stream the buffer (i.e. prepare resources for the current time period)
+ */
 void CBoundaryMap::streamBoundaries(double dTime)
 {
 	for (mapBoundaries_t::iterator it = mapBoundaries.begin(); it != mapBoundaries.end(); it++)

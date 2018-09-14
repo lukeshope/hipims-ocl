@@ -43,12 +43,12 @@ protected:
 		cl_uint			uiStartCellY;
 		cl_uint			uiEndCellX;
 		cl_uint			uiEndCellY;
-		cl_ulong		ent1;
-		cl_float		ent2;
-		cl_float		ent3;
-		cl_ulong		ent4;
-		cl_uint			ent5;
-		cl_uint			ent6;
+		cl_float		length;
+		cl_float		roughness;
+		cl_float		lossCoefficients;
+		cl_float		diameter;
+		cl_float		invertStart;
+		cl_float		invertEnd;
 	};
 	struct sConfigurationDP
 	{
@@ -56,15 +56,25 @@ protected:
 		cl_uint			uiStartCellY;
 		cl_uint			uiEndCellX;
 		cl_uint			uiEndCellY;
-		cl_ulong		ent1;
-		cl_double		ent2;
-		cl_double		ent3;
-		cl_ulong		ent4;
-		cl_uint			ent5;
-		cl_uint			ent6;
+		cl_double		length;
+		cl_double		roughness;
+		cl_double		lossCoefficients;
+		cl_double		diameter;
+		cl_double		invertStart;
+		cl_double		invertEnd;
 	};
 
-	COCLBuffer*						pBufferConfiguration;
+	COCLBuffer*		pBufferConfiguration;
+	unsigned int	startCellX;
+	unsigned int	startCellY;
+	unsigned int	endCellX;
+	unsigned int	endCellY;
+	double			length;
+	double			roughness;
+	double			lossCoefficients;
+	double			diameter;
+	double			invertStart;
+	double			invertEnd;
 };
 
 #endif

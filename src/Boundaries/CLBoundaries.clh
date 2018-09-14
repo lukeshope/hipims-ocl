@@ -81,6 +81,20 @@ typedef struct sBdyUniformConfiguration
 	cl_uint			Definition;
 } sBdyUniformConfiguration;
 
+typedef struct sBndySPipeConfiguration
+{
+		cl_uint			uiStartCellX;
+		cl_uint			uiStartCellY;
+		cl_uint			uiEndCellX;
+		cl_uint			uiEndCellY;
+		cl_double		length;
+		cl_double		roughness;
+		cl_double		lossCoefficients;
+		cl_double		diameter;
+		cl_double		invertStart;
+		cl_double		invertEnd;
+} sBndySPipeConfiguration;
+
 __kernel void bdy_Cell ( 
 	__constant		sBdyCellConfiguration *,
 	__global		cl_ulong const * restrict,
@@ -107,6 +121,16 @@ __kernel void bdy_Gridded (
 __kernel void bdy_Uniform ( 
 	__constant		sBdyUniformConfiguration *,
 	__global		cl_double2 const * restrict,
+	__global		cl_double *,
+	__global		cl_double *,
+	__global		cl_double *,
+	__global		cl_double4 *,
+	__global		cl_double *,
+	__global		cl_double *
+);
+
+__kernel void bdy_SimplePipe ( 
+	__constant		sBndySPipeConfiguration *,
 	__global		cl_double *,
 	__global		cl_double *,
 	__global		cl_double *,

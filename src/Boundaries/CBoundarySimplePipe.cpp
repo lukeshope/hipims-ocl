@@ -50,13 +50,48 @@ CBoundarySimplePipe::~CBoundarySimplePipe()
  */
 bool CBoundarySimplePipe::setupFromConfig(XMLElement* pElement, std::string sBoundarySourceDir)
 {
-	char *cBoundaryType, *cBoundaryName, *cBoundaryPipeLength;
+	char *cBoundaryType, 
+		 *cBoundaryName,
+		 *cBoundaryStartX,
+		 *cBoundaryStartY,
+		 *cBoundaryPipeLength,
+		 *cBoundaryPipeOrientation,
+		 *cBoundaryRoughness,
+		 *cBoundaryLossCoefficients,
+		 *cBoundaryDiameter,
+		 *cBoundaryInvertStart,
+		 *cBoundaryInvertEnd;
 
-	Util::toLowercase(&cBoundaryType,		pElement->Attribute("type"));
-	Util::toNewString(&cBoundaryName,		pElement->Attribute("name"));
-	Util::toLowercase(&cBoundaryPipeLength,	pElement->Attribute("length"));
+	Util::toLowercase(&cBoundaryType,			pElement->Attribute("type"));
+	Util::toNewString(&cBoundaryName,			pElement->Attribute("name"));
+	Util::toLowercase(&cBoundaryPipeLength,		pElement->Attribute("length"));
+	Util::toLowercase(&cBoundaryPipeOrientation,pElement->Attribute("orientation"));
+	Util::toLowercase(&cBoundaryRoughness,		pElement->Attribute("roughness"));
+	Util::toLowercase(&cBoundaryLossCoefficients, pElement->Attribute("lossCoefficients"));
+	Util::toLowercase(&cBoundaryDiameter,		pElement->Attribute("diameter"));
+	Util::toLowercase(&cBoundaryInvertStart,	pElement->Attribute("invertStart"));
+	Util::toLowercase(&cBoundaryInvertEnd,		pElement->Attribute("invertEnd"));
+	Util::toLowercase(&cBoundaryStartX,			pElement->Attribute("startX"));
+	Util::toLowercase(&cBoundaryStartY,			pElement->Attribute("startY"));
 
-	this->sName = std::string( cBoundaryName );
+	this->sName				= std::string( cBoundaryName );
+	this->length			= boost::lexical_cast<double>(cBoundaryPipeLength);
+	this->roughness			= boost::lexical_cast<double>(cBoundaryRoughness);
+	this->lossCoefficients	= boost::lexical_cast<double>(cBoundaryLossCoefficients);
+	this->diameter			= boost::lexical_cast<double>(cBoundaryDiameter);
+	this->invertStart		= boost::lexical_cast<double>(cBoundaryInvertStart);
+	this->invertEnd			= boost::lexical_cast<double>(cBoundaryInvertEnd);
+
+	double orientation		= boost::lexical_cast<double>(cBoundaryPipeOrientation);
+	double offsetX			= sin(orientation / 180 * CL_M_PI) * this->length;
+	double offsetY			= cos(orientation / 180 * CL_M_PI) * this->length;
+
+	// TODO: Determine cell index from real-world coordinates for start of pipe
+	// TODO: Apply above offsets to determine end cell
+	this->startCellX = 0;
+	this->startCellY = 1;
+	this->endCellX = 2;
+	this->endCellY = 3;
 
 	return true;
 }
@@ -66,7 +101,7 @@ bool CBoundarySimplePipe::setupFromConfig(XMLElement* pElement, std::string sBou
  */
 void CBoundarySimplePipe::importMap(CCSVDataset *pCSV)
 {
-
+	// Not applicable to this type of boundary
 }
 
 void CBoundarySimplePipe::prepareBoundary(
@@ -79,13 +114,87 @@ void CBoundarySimplePipe::prepareBoundary(
 			COCLBuffer* pBufferTimestep
 	 )
 {
-	// TODO: Create and copy for buffers
+	// Configuration for the pipe, no timeseries required
+	if (pProgram->getFloatForm() == model::floatPrecision::kSingle)
+	{
+		sConfigurationSP pConfiguration;
+
+		pConfiguration.diameter = this->diameter;
+		pConfiguration.invertStart = this->invertStart;
+		pConfiguration.invertEnd = this->invertEnd;
+		pConfiguration.length = this->length;
+		pConfiguration.lossCoefficients = this->lossCoefficients;
+		pConfiguration.roughness = this->roughness;
+		pConfiguration.uiStartCellX = this->startCellX;
+		pConfiguration.uiStartCellY = this->startCellY;
+		pConfiguration.uiEndCellX = this->endCellX;
+		pConfiguration.uiEndCellY = this->endCellY;
+		
+		this->pBufferConfiguration = new COCLBuffer(
+			"Bdy_" + this->sName + "_Conf",
+			pProgram,
+			true,
+			true,
+			sizeof(sConfigurationSP),
+			true
+		);
+		std::memcpy(
+			this->pBufferConfiguration->getHostBlock<void*>(),
+			&pConfiguration,
+			sizeof(sConfigurationSP)
+		);
+	}
+	else {
+		sConfigurationDP pConfiguration;
+
+		pConfiguration.diameter = this->diameter;
+		pConfiguration.invertStart = this->invertStart;
+		pConfiguration.invertEnd = this->invertEnd;
+		pConfiguration.length = this->length;
+		pConfiguration.lossCoefficients = this->lossCoefficients;
+		pConfiguration.roughness = this->roughness;
+		pConfiguration.uiStartCellX = this->startCellX;
+		pConfiguration.uiStartCellY = this->startCellY;
+		pConfiguration.uiEndCellX = this->endCellX;
+		pConfiguration.uiEndCellY = this->endCellY;
+
+		this->pBufferConfiguration = new COCLBuffer(
+			"Bdy_" + this->sName + "_Conf",
+			pProgram,
+			true,
+			true,
+			sizeof(sConfigurationDP),
+			true
+		);
+		std::memcpy(
+			this->pBufferConfiguration->getHostBlock<void*>(),
+			&pConfiguration,
+			sizeof(sConfigurationDP)
+		);
+	}
+
+	this->pBufferConfiguration->createBuffer();
+	this->pBufferConfiguration->queueWriteAll();
+
+	this->oclKernel = pProgram->getKernel("bdy_SimplePipe");
+	COCLBuffer* aryArgsBdy[] = {
+		pBufferConfiguration,						// 0
+		pBufferTime,								// 1
+		pBufferTimestep,							// 2
+		pBufferTimeHydrological,					// 3
+		NULL,	// Cell states (added later)		   4
+		pBufferBed,									// 5
+		pBufferManning								// 6
+	};
+
+	this->oclKernel->assignArguments(aryArgsBdy);
+	this->oclKernel->setGroupSize(1);
+	this->oclKernel->setGlobalSize(1);
 }
 
-// TODO: Only the cell buffer should be passed here...
 void CBoundarySimplePipe::applyBoundary(COCLBuffer* pBufferCell)
 {
-	this->oclKernel->assignArgument( 6, pBufferCell );
+	this->oclKernel->assignArgument( 4, pBufferCell );
 	this->oclKernel->scheduleExecution();
 }
 
