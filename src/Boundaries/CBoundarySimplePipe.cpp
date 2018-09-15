@@ -86,12 +86,29 @@ bool CBoundarySimplePipe::setupFromConfig(XMLElement* pElement, std::string sBou
 	double offsetX			= sin(orientation / 180 * CL_M_PI) * this->length;
 	double offsetY			= cos(orientation / 180 * CL_M_PI) * this->length;
 
+	CDomainCartesian* pDomain = static_cast<CDomainCartesian*>(this->pDomain);
+
+	if (pDomain->isRemote()) {
+		model::doError(
+			"Attempted to setup pipe boundary on remote domain.",
+			model::errorCodes::kLevelModelStop
+		);
+		return false;
+	}
+
+	double dCornerN, dCornerE, dCornerS, dCornerW, dResolution;
+	pDomain->getCellResolution(&dResolution);
+	pDomain->getRealExtent(&dCornerN, &dCornerE, &dCornerS, &dCornerW);
+
+	double startX			= boost::lexical_cast<double>(cBoundaryStartX);
+	double startY			= boost::lexical_cast<double>(cBoundaryStartY);
+
 	// TODO: Determine cell index from real-world coordinates for start of pipe
 	// TODO: Apply above offsets to determine end cell
-	this->startCellX = 0;
-	this->startCellY = 1;
-	this->endCellX = 2;
-	this->endCellY = 3;
+	this->startCellX = floor((startX - dCornerW) / dResolution);
+	this->startCellY = floor((startY - dCornerS) / dResolution);
+	this->endCellX = this->startCellX + floor(offsetX / dResolution);
+	this->endCellY = this->startCellY + floor(offsetY / dResolution);
 
 	return true;
 }
@@ -194,6 +211,10 @@ void CBoundarySimplePipe::prepareBoundary(
 
 void CBoundarySimplePipe::applyBoundary(COCLBuffer* pBufferCell)
 {
+	// TODO: Remove me!
+	CDomainCartesian* pDomain = static_cast<CDomainCartesian*>(this->pDomain);
+	double dStartBed = pDomain->getBedElevation(pDomain->getCellID(this->endCellX, this->endCellY));
+
 	this->oclKernel->assignArgument( 4, pBufferCell );
 	this->oclKernel->scheduleExecution();
 }

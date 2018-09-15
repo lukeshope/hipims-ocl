@@ -269,14 +269,6 @@ __kernel void bdy_SimplePipe (
 	__private cl_double4				pEndData		= pCellState[ulIdxEnd];
 	__private cl_double					dEndBed			= pCellBed[ulIdxEnd];
 
-	// -- TESTING ONLY BELOW
-	// Override values for testing
-	dStartBed    = 5.000;
-	dEndBed      = 4.950;
-	pStartData.x = pConfig.invertStart + 1.2;
-	pEndData.x   = pConfig.invertEnd + min(0.100, pStartData.x - dStartBed);
-	// -- TESTING ONLY ABOVE
-
 	__private cl_double					dStartVelocityX = pStartData.z / max(VERY_SMALL, pStartData.x - dStartBed);
 	__private cl_double					dStartVelocityY = pStartData.w / max(VERY_SMALL, pStartData.x - dStartBed);
 	__private cl_double					dEndVelocityX   = pEndData.z / max(VERY_SMALL, pEndData.x - dEndBed);
@@ -296,13 +288,13 @@ __kernel void bdy_SimplePipe (
 	printf("   Diameter:          %f m\n", pConfig.diameter);
 	printf(" Initial states:\n");
 	printf("   Start of pipe:\n");
-	printf("     Water level:     %f m\n", pStartData.x);
-	printf("     Pipe depth:      %f m\n", pStartData.x - pConfig.invertStart);
+	printf("     Water level:     %f m\n", max(dStartBed, pStartData.x));
+	printf("     Pipe depth:      %f m\n", max(dStartBed, pStartData.x) - pConfig.invertStart);
 	printf("     UW discharge X:  %f m^2/s (%f m/s)\n", pStartData.z, dStartVelocityX);
 	printf("     UW discharge Y:  %f m^2/s (%f m/s)\n", pStartData.w, dStartVelocityY);
 	printf("   End of pipe:\n");
-	printf("     Water level:     %f m\n", pEndData.x);
-	printf("     Pipe depth:      %f m\n", pEndData.x - pConfig.invertEnd);
+	printf("     Water level:     %f m\n", max(dEndBed, pEndData.x));
+	printf("     Pipe depth:      %f m\n", max(dEndBed, pEndData.x) - pConfig.invertEnd);
 	printf("     UW discharge X:  %f m^2/s (%f m/s)\n", pEndData.z, dEndVelocityX);
 	printf("     UW discharge Y:  %f m^2/s (%f m/s)\n", pEndData.w, dEndVelocityY);
 	#endif
@@ -336,9 +328,13 @@ __kernel void bdy_SimplePipe (
 	__private cl_double		dOtherHeadTerms;
 	__private cl_double		dError = 9999999999.9;
 	__private cl_double		dInitialFrictionHeadLoss = (pStartData.x - pConfig.invertStart) > 0.0 
-		? (pConfig.invertStart + ((pStartData.x - pConfig.invertStart) / 2.0)) - (pConfig.invertEnd + ((pEndData.x - pConfig.invertEnd) / 2.0)) 
+		? (pConfig.invertStart + ((max(dStartBed, pStartData.x) - pConfig.invertStart) / 2.0)) - (pConfig.invertEnd + ((max(dEndBed, pEndData.x) - pConfig.invertEnd) / 2.0)) 
 		: 0.0;
 	__private cl_uint		uiIterations = 0;
+
+	if (dInitialFrictionHeadLoss <= 0.0) {
+		return;
+	}
 
 	// Iterative process for Darcy-Weisbach
 	while (uiIterations < 200 && fabs(dError) > 0.00001) {
@@ -380,8 +376,8 @@ __kernel void bdy_SimplePipe (
 	#endif
 
 	// Lower the level upstream, increase the level downstream
-	pStartData.x -= (dPipeDischarge * dLocalTimestep) / DOMAIN_DELTAX / DOMAIN_DELTAY;
-	pEndData.x += (dPipeDischarge * dLocalTimestep) / DOMAIN_DELTAX / DOMAIN_DELTAY;
+	pStartData.x = max(dStartBed, pStartData.x - (dPipeDischarge * dLocalTimestep) / DOMAIN_DELTAX / DOMAIN_DELTAY);
+	pEndData.x = max(dEndBed, pEndData.x) + (dPipeDischarge * dLocalTimestep) / DOMAIN_DELTAX / DOMAIN_DELTAY;
 
 	// IMPORTANT NOTE
 	// The velocity within the pipe is not used to adjust velocities in the cells neighbouring
@@ -390,6 +386,7 @@ __kernel void bdy_SimplePipe (
 	#ifdef DEBUG_OUTPUT
 	printf(" Final states:\n");
 	printf("   Volume changes:\n");
+	printf("     Time:            %f s\n", dLocalTime);
 	printf("     Timestep:        %f s\n", dLocalTimestep);
 	printf("     Volume:          %f m3\n", dPipeDischarge * dLocalTimestep);
 	printf("     Level change:    %f m\n", (dPipeDischarge * dLocalTimestep) / DOMAIN_DELTAX / DOMAIN_DELTAY);
