@@ -34,7 +34,7 @@ public:
 	virtual void					applyBoundary(COCLBuffer*);
 	virtual void					streamBoundary(double);
 	virtual void					cleanBoundary();
-	virtual void					importMap(CCSVDataset*);
+	virtual void					importMap(CCSVDataset*, bool = false);
 
 protected:	
 

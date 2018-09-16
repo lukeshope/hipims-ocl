@@ -1057,7 +1057,7 @@ void	CSchemeGodunov::prepareSimulation()
 	this->pDomain->getBoundaries()->applyDomainModifications();
 
 	// Initial volume in the domain
-	pManager->log->writeLine( "Initial domain volume: " + toString( abs((int)(this->pDomain->getVolume()) ) ) + "m3" );
+	pManager->log->writeLine( "Initial domain volume: " + toString( fabs((float)(this->pDomain->getVolume()) ) ) + " m³" );
 
 	// Copy the initial conditions
 	pManager->log->writeLine( "Copying domain data to device..." );
@@ -1636,6 +1636,7 @@ void	CSchemeGodunov::scheduleIteration(
 
 	// Run the boundary kernels (each bndy has its own kernel now)
 	pDomain->getBoundaries()->applyBoundaries(bUseAlternateKernel ? oclBufferCellStatesAlt : oclBufferCellStates);
+	// pDomain->getBoundaries()->applyBoundaries(bUseAlternateKernel ? oclBufferCellStates : oclBufferCellStatesAlt); // Note: Should not be required unless something else is broken
 	pDevice->queueBarrier();
 
 	// Main scheme kernel

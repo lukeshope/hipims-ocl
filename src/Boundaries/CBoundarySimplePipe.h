@@ -75,6 +75,8 @@ protected:
 	double			diameter;
 	double			invertStart;
 	double			invertEnd;
+
+	bool			bedElevationChecked;
 };
 
 #endif

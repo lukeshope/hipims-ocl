@@ -748,12 +748,19 @@ double	CDomainCartesian::getVolume()
 	{
 		if ( this->isDoublePrecision() )
 		{
-			dVolume += ( this->dCellStates[i].s[0] - this->dBedElevations[i] ) *
-					   this->dCellResolution * this->dCellResolution;
+			dVolume += ( max(0.0, this->dCellStates[i].s[0] - this->dBedElevations[i]) ) *
+					   fabs(this->dCellResolution * this->dCellResolution);
 		} else {
-			dVolume += ( this->fCellStates[i].s[0] - this->fBedElevations[i] ) *
-					   this->dCellResolution * this->dCellResolution;
+			dVolume += ( max(0.0, this->fCellStates[i].s[0] - this->fBedElevations[i]) ) *
+					   fabs(this->dCellResolution * this->dCellResolution);
 		}
+	}
+
+	if (isnan(dVolume)) {
+		model::doError(
+			"Domain volume is no longer numeric. Computation error occured.",
+			model::errorCodes::kLevelModelStop
+		);
 	}
 
 	return dVolume;
@@ -808,6 +815,8 @@ void	CDomainCartesian::writeOutputs()
 	pDevice->blockUntilFinished();
 	pScheme->readDomainAll();
 	pDevice->blockUntilFinished();
+
+	pManager->log->writeLine("Current domain volume: " + toString(fabs((float)(this->getVolume()))) + " m³");
 
 	for( unsigned int i = 0; i < this->pOutputs.size(); ++i )
 	{

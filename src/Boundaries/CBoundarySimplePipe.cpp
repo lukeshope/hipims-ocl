@@ -35,6 +35,7 @@ CBoundarySimplePipe::CBoundarySimplePipe( CDomain* pDomain )
 {
 	this->pBufferConfiguration = NULL;
 	this->pDomain = pDomain;
+	this->bedElevationChecked = false;
 }
 
 /*
@@ -54,6 +55,8 @@ bool CBoundarySimplePipe::setupFromConfig(XMLElement* pElement, std::string sBou
 		 *cBoundaryName,
 		 *cBoundaryStartX,
 		 *cBoundaryStartY,
+		 *cBoundaryEndX,
+		 *cBoundaryEndY,
 		 *cBoundaryPipeLength,
 		 *cBoundaryPipeOrientation,
 		 *cBoundaryRoughness,
@@ -73,6 +76,8 @@ bool CBoundarySimplePipe::setupFromConfig(XMLElement* pElement, std::string sBou
 	Util::toLowercase(&cBoundaryInvertEnd,		pElement->Attribute("invertEnd"));
 	Util::toLowercase(&cBoundaryStartX,			pElement->Attribute("startX"));
 	Util::toLowercase(&cBoundaryStartY,			pElement->Attribute("startY"));
+	Util::toLowercase(&cBoundaryEndX,			pElement->Attribute("endX"));
+	Util::toLowercase(&cBoundaryEndY,			pElement->Attribute("endY"));
 
 	this->sName				= std::string( cBoundaryName );
 	this->length			= boost::lexical_cast<double>(cBoundaryPipeLength);
@@ -82,9 +87,12 @@ bool CBoundarySimplePipe::setupFromConfig(XMLElement* pElement, std::string sBou
 	this->invertStart		= boost::lexical_cast<double>(cBoundaryInvertStart);
 	this->invertEnd			= boost::lexical_cast<double>(cBoundaryInvertEnd);
 
-	double orientation		= boost::lexical_cast<double>(cBoundaryPipeOrientation);
-	double offsetX			= sin(orientation / 180 * CL_M_PI) * this->length;
-	double offsetY			= cos(orientation / 180 * CL_M_PI) * this->length;
+	double offsetX = 0.0, offsetY = 0.0;
+	if (cBoundaryPipeOrientation != NULL) {
+		double orientation = boost::lexical_cast<double>(cBoundaryPipeOrientation);
+		offsetX = sin(orientation / 180 * CL_M_PI) * this->length;
+		offsetY = cos(orientation / 180 * CL_M_PI) * this->length;
+	}
 
 	CDomainCartesian* pDomain = static_cast<CDomainCartesian*>(this->pDomain);
 
@@ -105,8 +113,18 @@ bool CBoundarySimplePipe::setupFromConfig(XMLElement* pElement, std::string sBou
 
 	this->startCellX = floor((startX - dCornerW) / dResolution);
 	this->startCellY = floor((startY - dCornerS) / dResolution);
-	this->endCellX = this->startCellX + floor(offsetX / dResolution);
-	this->endCellY = this->startCellY + floor(offsetY / dResolution);
+
+	if (cBoundaryEndX != NULL && cBoundaryEndY != NULL) {
+		double endX = boost::lexical_cast<double>(cBoundaryEndX);
+		double endY = boost::lexical_cast<double>(cBoundaryEndY);
+		this->endCellX = floor((endX - dCornerW) / dResolution);
+		this->endCellY = floor((endY - dCornerS) / dResolution);
+	}
+	else
+	{
+		this->endCellX = this->startCellX + ceil(fabs(offsetX / dResolution)) * (offsetX > 0 ? 1.0 : -1.0);
+		this->endCellY = this->startCellY + ceil(fabs(offsetY / dResolution)) * (offsetY > 0 ? 1.0 : -1.0);
+	}
 
 	return true;
 }
@@ -209,6 +227,22 @@ void CBoundarySimplePipe::prepareBoundary(
 
 void CBoundarySimplePipe::applyBoundary(COCLBuffer* pBufferCell)
 {
+	if (!this->bedElevationChecked) {
+		CDomainCartesian* pDomain = static_cast<CDomainCartesian*>(this->pDomain);
+
+		double dBedStart = pDomain->getBedElevation(pDomain->getCellID(this->startCellX, this->startCellY));
+		double dBedEnd = pDomain->getBedElevation(pDomain->getCellID(this->endCellX, this->endCellY));
+
+		if (this->invertStart < dBedStart || this->invertEnd < dBedEnd) {
+			model::doError(
+				"Pipe '" + this->sName + "' has invert lower than bed elevation.",
+				model::errorCodes::kLevelModelStop
+			);
+		}
+
+		this->bedElevationChecked = true;
+	}
+
 	this->oclKernel->assignArgument( 4, pBufferCell );
 	this->oclKernel->scheduleExecution();
 }

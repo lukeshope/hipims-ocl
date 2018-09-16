@@ -117,14 +117,18 @@ bool	CBoundaryMap::setupFromConfig( XMLElement *pConfiguration )
 		return true;
 	}
 
-	char						*cSourceDir, *cMapFile;
+	char						*cSourceDir, *cMapFile, *cMapType;
 	std::string					sSourceDir, sMapFile;
 
 	Util::toNewString(&cSourceDir, pBoundariesElement->Attribute("sourceDir"));
 	Util::toNewString(&cMapFile, pBoundariesElement->Attribute("mapFile"));
+	Util::toNewString(&cMapType, pBoundariesElement->Attribute("mapType"));
 	sSourceDir	= (cSourceDir == NULL || strcmp(cSourceDir, "") == 0 ? "./" : (std::string(cSourceDir) + "/"));
 	sMapFile	= (cMapFile == NULL ? "" : (sSourceDir + std::string(cMapFile)));
-	delete cSourceDir, cMapFile;
+
+	bool mapUsesCoordinates = cMapType != NULL && strcmp(cMapType, "coordinates") == 0;
+
+	delete cSourceDir, cMapFile, cMapType;
 
 	// ---
 	//  Map file
@@ -178,7 +182,7 @@ bool	CBoundaryMap::setupFromConfig( XMLElement *pConfiguration )
 			}
 			else {
 				if ( pMapFile != NULL )
-					pNewBoundary->importMap(pMapFile);
+					pNewBoundary->importMap(pMapFile, mapUsesCoordinates);
 			}
 
 			// Store the new boundary in the unordered map
