@@ -1634,11 +1634,6 @@ void	CSchemeGodunov::scheduleIteration(
 		oclKernelTimestepReduction->assignArgument( 3, oclBufferCellStatesAlt );
 	}
 
-	// Run the boundary kernels (each bndy has its own kernel now)
-	pDomain->getBoundaries()->applyBoundaries(bUseAlternateKernel ? oclBufferCellStatesAlt : oclBufferCellStates);
-	// pDomain->getBoundaries()->applyBoundaries(bUseAlternateKernel ? oclBufferCellStates : oclBufferCellStatesAlt); // Note: Should not be required unless something else is broken
-	pDevice->queueBarrier();
-
 	// Main scheme kernel
 	oclKernelFullTimestep->scheduleExecution();
 	pDevice->queueBarrier();
@@ -1649,6 +1644,11 @@ void	CSchemeGodunov::scheduleIteration(
 		oclKernelFriction->scheduleExecution();
 		pDevice->queueBarrier();
 	}
+
+	// Run the boundary kernels (each bndy has its own kernel now)
+	pDomain->getBoundaries()->applyBoundaries(bUseAlternateKernel ? oclBufferCellStates : oclBufferCellStatesAlt);
+	// pDomain->getBoundaries()->applyBoundaries(bUseAlternateKernel ? oclBufferCellStates : oclBufferCellStatesAlt); // Note: Should not be required unless something else is broken
+	pDevice->queueBarrier();
 
 	// Timestep reduction
 	if ( this->bDynamicTimestep )

@@ -667,6 +667,10 @@ void	CSchemeMUSCLHancock::scheduleIteration(
 		pDevice->queueBarrier();
 	}
 
+	// Run the boundary kernels (each bndy has its own kernel now)
+	pDomain->getBoundaries()->applyBoundaries(oclBufferCellStates);
+	pDevice->queueBarrier();
+
 	// Timestep reduction
 	if ( this->bDynamicTimestep )
 	{

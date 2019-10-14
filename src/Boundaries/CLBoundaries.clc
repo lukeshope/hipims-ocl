@@ -346,7 +346,7 @@ __kernel void bdy_SimplePipe (
 	}
 
 	// Iterative process for Darcy-Weisbach
-	while (uiIterations < 500 && fabs(dError) > 0.00001) {
+	while (uiIterations < 500 && fabs(dError) > 0.0001) {
 		uiIterations				+= 1;
 
 		// Apply a number of methods to come up with sensible friction head losses
@@ -356,13 +356,22 @@ __kernel void bdy_SimplePipe (
 		if (uiIterations <= 1) {
 			dFrictionHeadLossEst		= dInitialFrictionHeadLoss;
 		} else {
-			dFrictionHeadLossEst		= dFrictionHeadLossEst > dOtherHeadTerms
-				? dFrictionHeadLossEst - dOtherHeadTerms
-				: dFrictionHeadLossEst + dError * 0.01;
+			if (dFrictionHeadLossEst > dOtherHeadTerms) {
+				dFrictionHeadLossEst = dFrictionHeadLossEst - dOtherHeadTerms;
+			} else {
+				double dMultiplier = fabs(dError) < 0.2 ? 0.002 : 0.2;
+				double dSign	   = sign(dError);
+				dFrictionHeadLossEst = dFrictionHeadLossEst
+					+ dSign
+					* max(
+						(cl_double)(min(fabs(dError), dFrictionHeadLossEst) * dMultiplier),
+						(cl_double)0.00001
+					);
+			}
 		}
 
 		if (dFrictionHeadLossEst < 0.0) {
-			dFrictionHeadLossEst = dLastFrictionHeadLoss / 2.0;
+			dFrictionHeadLossEst = dLastFrictionHeadLoss * 2.0 / 3.0;
 		}
 
 		dVelocity					= -2.0
@@ -381,6 +390,11 @@ __kernel void bdy_SimplePipe (
 		printf("   Other head:    %f\n", dOtherHeadTerms);
 		printf("   Error:         %f\n", dError);
 		#endif
+	}
+
+	if (uiIterations >= 500 || fabs(dError) > 0.0001) {
+		// Force NaN to terminate simulation
+		dPipeDischarge = sqrt(-1.0);
 	}
 
 	dPipeDischarge = dVelocity * PI * (dPartialShapeFactor * pConfig.diameter / 2.0) * (dPartialShapeFactor * pConfig.diameter / 2.0);
