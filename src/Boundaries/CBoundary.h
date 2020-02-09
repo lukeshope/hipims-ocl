@@ -41,7 +41,8 @@ namespace types { enum types {
 	kBndyTypeAtmospheric,
 	kBndyTypeCopy,
 	kBndyTypeReflective,		// -- Put the gridded types after this
-	kBndyTypeAtmosphericGrid
+	kBndyTypeAtmosphericGrid,
+	kBndyTypeSimplePipe
 }; }
 
 namespace depthValues { enum depthValues {
@@ -90,7 +91,7 @@ public:
 	virtual void					applyBoundary(COCLBuffer*) = 0;
 	virtual void					streamBoundary(double) = 0;
 	virtual void					cleanBoundary() = 0;
-	virtual void					importMap(CCSVDataset*)				{};
+	virtual void					importMap(CCSVDataset*, bool = false)		{};
 	std::string						getName()							{ return sName; };
 
 	static int			uiInstances;

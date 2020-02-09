@@ -36,6 +36,7 @@ CBoundaryUniform::CBoundaryUniform( CDomain* pDomain )
 	this->ucValue = model::boundaries::uniformValues::kValueLossRate;
 
 	this->pDomain = pDomain;
+	this->dRatio = 1.0;
 }
 
 /*
@@ -54,15 +55,22 @@ CBoundaryUniform::~CBoundaryUniform()
 */
 bool CBoundaryUniform::setupFromConfig(XMLElement* pElement, std::string sBoundarySourceDir)
 {
-	char *cBoundaryType, *cBoundaryName, *cBoundarySource, *cBoundaryValue;
+	char *cBoundaryType, *cBoundaryName, *cBoundarySource, *cBoundaryValue, *cBoundaryRatio;
 
 	Util::toLowercase(&cBoundaryType, pElement->Attribute("type"));
 	Util::toNewString(&cBoundaryName, pElement->Attribute("name"));
 	Util::toLowercase(&cBoundarySource, pElement->Attribute("source"));
 	Util::toLowercase(&cBoundaryValue, pElement->Attribute("value"));
+	Util::toLowercase(&cBoundaryRatio, pElement->Attribute("effectiveRunoffPercentage"));
 
 	// Must have unique name for each boundary (will get autoname by default)
 	this->sName = std::string(cBoundaryName);
+
+	// Allow an effective runoff ratio to be specified
+	if (cBoundaryRatio != NULL) {
+		this->dRatio = boost::lexical_cast<double>(cBoundaryRatio) / 100.0;
+		pManager->log->writeLine("Effective runoff ratio is set at " + toString(this->dRatio));
+	}
 
 	// Volume increase column represents...
 	if (cBoundaryValue == NULL || strcmp(cBoundaryValue, "rain-intensity") == 0) {
@@ -131,7 +139,7 @@ void CBoundaryUniform::importTimeseries(CCSVDataset *pCSV)
 			try
 			{
 				this->pTimeseries[uiIndex].dTime = boost::lexical_cast<cl_double>((*it)[0]);
-				this->pTimeseries[uiIndex].dComponent = boost::lexical_cast<cl_double>((*it)[1]);
+				this->pTimeseries[uiIndex].dComponent = boost::lexical_cast<cl_double>((*it)[1]) * this->dRatio;
 			}
 			catch (boost::bad_lexical_cast)
 			{

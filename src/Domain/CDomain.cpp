@@ -336,12 +336,12 @@ void	CDomain::handleInputData(
 		this->setStateValue( 
 			ulCellID, 
 			model::domainValueIndices::kValueFreeSurfaceLevel, 
-			Util::round( ( this->getBedElevation( ulCellID ) + dValue ), ucRounding ) 
+			Util::round( ( this->getBedElevation( ulCellID ) + max(-1e-12, dValue) ), ucRounding ) 
 		);
 		this->setStateValue( 
 			ulCellID, 
 			model::domainValueIndices::kValueMaxFreeSurfaceLevel, 
-			Util::round( ( this->getBedElevation( ulCellID ) + dValue ), ucRounding ) 
+			Util::round( ( this->getBedElevation( ulCellID ) + max(-1e-12, dValue) ), ucRounding )
 		);
 		if ( dValue + this->getBedElevation( ulCellID ) < dMinFSL && this->getBedElevation( ulCellID ) > -9999.0 && dValue > -9999.0 ) dMinFSL = dValue;
 		if ( dValue + this->getBedElevation( ulCellID ) > dMaxFSL && this->getBedElevation( ulCellID ) > -9999.0 && dValue > -9999.0 ) dMaxFSL = dValue;

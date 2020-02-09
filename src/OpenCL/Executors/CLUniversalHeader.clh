@@ -31,6 +31,7 @@
 #endif
 
 #define		GRAVITY					9.81		// 9.80665
+#define		PI						3.14159265359
 
 // Type aliases to be consistent across different platforms
 typedef char	    cl_char;

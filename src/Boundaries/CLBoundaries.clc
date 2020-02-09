@@ -86,7 +86,11 @@ __kernel void bdy_Cell (
 			{
 				// In the case of volume boundaries, no scaling has taken place
 				dNormalDepth = 0.0;
-				dDepth = (fabs(pTSInterp.z) * dLocalTimestep) / (DOMAIN_DELTAX * DOMAIN_DELTAY);
+				if (pTSInterp.z < 0.0) {
+					dDepth = -(fabs(pTSInterp.z) * dLocalTimestep) / (DOMAIN_DELTAX * DOMAIN_DELTAY);
+				} else {
+					dDepth = (fabs(pTSInterp.z) * dLocalTimestep) / (DOMAIN_DELTAX * DOMAIN_DELTAY);
+				}
 				dCriticalDepth = 0.0;
 				pTSInterp.z = 0.0;
 				pTSInterp.w = 0.0;
@@ -243,4 +247,202 @@ __kernel void bdy_Gridded (
 
 	// Return to global memory
 	pCellState[ulIdx] = pCellData;
+}
+
+__kernel void bdy_SimplePipe (
+	__constant		sBndySPipeConfiguration *		pConfiguration,
+	__global		cl_double *						pTime,
+	__global		cl_double *						pTimestep,
+	__global		cl_double *						pTimeHydrological,
+	__global		cl_double4 *					pCellState,
+	__global		cl_double *						pCellBed,
+	__global		cl_double *						pCellManning
+	)
+{
+	__private sBndySPipeConfiguration	pConfig			= *pConfiguration;
+	__private cl_double					dLocalTime		= *pTime;
+	__private cl_double					dLocalTimestep  = *pTimestep;
+	
+	if (dLocalTimestep <= 0.0)
+		return;
+
+	__private cl_ulong					ulIdxStart		= getCellID(pConfig.uiStartCellX, pConfig.uiStartCellY);
+	__private cl_ulong					ulIdxEnd		= getCellID(pConfig.uiEndCellX, pConfig.uiEndCellY);
+	__private cl_double4				pStartData		= pCellState[ulIdxStart];
+	__private cl_double					dStartBed		= pCellBed[ulIdxStart];
+	__private cl_double4				pEndData		= pCellState[ulIdxEnd];
+	__private cl_double					dEndBed			= pCellBed[ulIdxEnd];
+
+	__private cl_double					dStartVelocityX = pStartData.z / max(VERY_SMALL, pStartData.x - dStartBed);
+	__private cl_double					dStartVelocityY = pStartData.w / max(VERY_SMALL, pStartData.x - dStartBed);
+	__private cl_double					dEndVelocityX   = pEndData.z / max(VERY_SMALL, pEndData.x - dEndBed);
+	__private cl_double					dEndVelocityY   = pEndData.w / max(VERY_SMALL, pEndData.x - dEndBed);
+	__private cl_double					dPipeDischarge	= 0.0;
+
+	#ifdef DEBUG_OUTPUT
+	printf("-- SIMPLE PIPE BOUNDARY --\n");
+	printf(" Configuration:\n");
+	printf("   Start cell:        %u, %u\n", pConfig.uiStartCellX, pConfig.uiStartCellY);
+	printf("   Start invert:      %f m\n", pConfig.invertStart);
+	printf("   Start bed:         %f m\n", dStartBed);
+	printf("   End cell:          %u, %u\n", pConfig.uiEndCellX, pConfig.uiEndCellY);
+	printf("   End invert:        %f m\n", pConfig.invertEnd);
+	printf("   End bed:           %f m\n", dEndBed);
+	printf("   Roughness:         %f mm\n", pConfig.roughness);
+	printf("   Length:            %f m\n", pConfig.length);
+	printf("   Loss coefficients: %f\n", pConfig.lossCoefficients);
+	printf("   Diameter:          %f m\n", pConfig.diameter);
+	printf(" Initial states:\n");
+	printf("   Start of pipe:\n");
+	printf("     Water level:     %f m\n", max(dStartBed, pStartData.x));
+	printf("     Pipe depth:      %f m\n", max(dStartBed, pStartData.x) - pConfig.invertStart);
+	printf("     UW discharge X:  %f m^2/s (%f m/s)\n", pStartData.z, dStartVelocityX);
+	printf("     UW discharge Y:  %f m^2/s (%f m/s)\n", pStartData.w, dStartVelocityY);
+	printf("   End of pipe:\n");
+	printf("     Water level:     %f m\n", max(dEndBed, pEndData.x));
+	printf("     Pipe depth:      %f m\n", max(dEndBed, pEndData.x) - pConfig.invertEnd);
+	printf("     UW discharge X:  %f m^2/s (%f m/s)\n", pEndData.z, dEndVelocityX);
+	printf("     UW discharge Y:  %f m^2/s (%f m/s)\n", pEndData.w, dEndVelocityY);
+	#endif
+
+	if (pStartData.x - pConfig.invertStart < VERY_SMALL || pConfig.invertStart < dStartBed) {
+		#ifdef DEBUG_OUTPUT
+		printf("  Pipe is empty or close. No discharge.\n");
+		if (pConfig.invertStart < dStartBed) {
+			printf("  [WARNING] Pipe invert is below bed level of cell.\n");
+		}
+		#endif
+		return;
+	}
+
+	// Shape factor calculations to be used in the case of partially full pipes
+	__private cl_double		dProportionalDepthAngle		= PI * 2.0;
+	__private cl_double		dPartialShapeFactor			= 1.0;
+
+	if ((pStartData.x - pConfig.invertStart) < pConfig.diameter) {
+		dProportionalDepthAngle = 2 * acos(1.0 - (2 * (pStartData.x - pConfig.invertStart)) / pConfig.diameter);
+		if (dProportionalDepthAngle > 0.0) {
+			dPartialShapeFactor = (dProportionalDepthAngle - sin(dProportionalDepthAngle)) / dProportionalDepthAngle;
+		}
+	}
+
+	#ifdef DEBUG_OUTPUT
+	printf(" Partial pipe flow factors:\n");
+	printf("   Prop depth angle:  %f\n", dProportionalDepthAngle);
+	printf("   Shape factor:      %f\n", dPartialShapeFactor);
+	#endif
+
+	__private cl_double		dFrictionHeadLossEst;
+	__private cl_double		dVelocity;
+	__private cl_double		dOtherHeadTerms;
+	__private cl_double		dError = 9999999999.9;
+	__private cl_double		dInitialFrictionHeadLoss = (pStartData.x - pConfig.invertStart) > 0.0 
+		? (pConfig.invertStart + ((max(pConfig.invertStart, pStartData.x) - pConfig.invertStart) / 2.0)) - (pConfig.invertEnd + ((max(pConfig.invertEnd, pEndData.x) - pConfig.invertEnd) / 2.0)) 
+		: 0.0;
+	__private cl_uint		uiIterations = 0;
+
+	if (dInitialFrictionHeadLoss <= 0.0) {
+		return;
+	}
+
+	// Iterative process for Darcy-Weisbach
+	while (uiIterations < 500 && fabs(dError) > 0.0001) {
+		uiIterations				+= 1;
+
+		// Apply a number of methods to come up with sensible friction head losses
+		// as the value MUST be positive. In situations where other losses far exceed
+		// the friction losses, this could still fail in which case expect NaN terminations.
+		double dLastFrictionHeadLoss = dFrictionHeadLossEst;
+		if (uiIterations <= 1) {
+			dFrictionHeadLossEst		= dInitialFrictionHeadLoss;
+		} else {
+			if (dFrictionHeadLossEst > dOtherHeadTerms) {
+				dFrictionHeadLossEst = dFrictionHeadLossEst - dOtherHeadTerms;
+			} else {
+				double dMultiplier = fabs(dError) < 0.2 ? 0.002 : 0.2;
+				double dSign	   = sign(dError);
+				dFrictionHeadLossEst = dFrictionHeadLossEst
+					+ dSign
+					* max(
+						(cl_double)(min(fabs(dError), dFrictionHeadLossEst) * dMultiplier),
+						(cl_double)0.00001
+					);
+			}
+		}
+
+		if (dFrictionHeadLossEst < 0.0) {
+			dFrictionHeadLossEst = dLastFrictionHeadLoss * 2.0 / 3.0;
+		}
+
+		dVelocity					= -2.0
+			* sqrt(2.0 * GRAVITY * dPartialShapeFactor * pConfig.diameter * dFrictionHeadLossEst / pConfig.length)
+			* log10(
+				 ( (pConfig.roughness / 1000.0) / (3.7 * dPartialShapeFactor * pConfig.diameter) )
+			   + ( (2.51 * 1.13e-6) / ( (dPartialShapeFactor * pConfig.diameter) * sqrt(2.0 * GRAVITY * dPartialShapeFactor * pConfig.diameter * dFrictionHeadLossEst / pConfig.length) ))
+			  );
+		dOtherHeadTerms = pConfig.lossCoefficients * (dVelocity * dVelocity / (2.0 * GRAVITY));
+		dError = dInitialFrictionHeadLoss - dFrictionHeadLossEst - dOtherHeadTerms;
+
+		#ifdef DEBUG_OUTPUT
+		printf(" Results of iteration:\n");
+		printf("   Friction loss: %f\n", dFrictionHeadLossEst);
+		printf("   Velocity:      %f\n", dVelocity);
+		printf("   Other head:    %f\n", dOtherHeadTerms);
+		printf("   Error:         %f\n", dError);
+		#endif
+	}
+
+	if (uiIterations >= 500 || fabs(dError) > 0.0001) {
+		// Force NaN to terminate simulation
+		dPipeDischarge = sqrt(-1.0);
+	}
+
+	dPipeDischarge = dVelocity * PI * (dPartialShapeFactor * pConfig.diameter / 2.0) * (dPartialShapeFactor * pConfig.diameter / 2.0);
+
+	#ifdef DEBUG_OUTPUT
+	printf(" %u iterations, with error %f.\n", uiIterations, dError);
+	printf(" Pipe flow:\n");
+	printf("   Velocity:          %f\n", dVelocity);
+	printf("   Discharge:         %f\n", dPipeDischarge);
+	#endif
+
+	// Lower the level upstream, increase the level downstream
+	if (pEndData.x < dEndBed + VERY_SMALL) {
+		pEndData.z = 0.0;
+		pEndData.w = 0.0;
+	}
+
+	pStartData.x = max(dStartBed, pStartData.x - (dPipeDischarge * dLocalTimestep) / DOMAIN_DELTAX / DOMAIN_DELTAY);
+	pEndData.x = max(dEndBed, pEndData.x) + (dPipeDischarge * dLocalTimestep) / DOMAIN_DELTAX / DOMAIN_DELTAY;
+
+	if (pStartData.x < dStartBed + VERY_SMALL) {
+		pStartData.z = 0.0;
+		pStartData.w = 0.0;
+	}
+
+	// IMPORTANT NOTE
+	// The velocity within the pipe is not used to adjust velocities in the cells neighbouring
+	// the entry or exit of the pipe. This could be a future development.
+
+	#ifdef DEBUG_OUTPUT
+	printf(" Final states:\n");
+	printf("   Volume changes:\n");
+	printf("     Time:            %f s\n", dLocalTime);
+	printf("     Timestep:        %f s\n", dLocalTimestep);
+	printf("     Volume:          %f m3\n", dPipeDischarge * dLocalTimestep);
+	printf("     Level change:    %f m\n", (dPipeDischarge * dLocalTimestep) / DOMAIN_DELTAX / DOMAIN_DELTAY);
+	printf("   Start of pipe:\n");
+	printf("     Water level:     %f m\n", pStartData.x);
+	printf("     Depth:           %f m\n", pStartData.x - dStartBed);
+	printf("     UW discharge X:  %f m^2/s (%f m/s)\n", pStartData.z, dStartVelocityX);
+	printf("     UW discharge Y:  %f m^2/s (%f m/s)\n", pStartData.w, dStartVelocityY);
+	printf("   End of pipe:\n");
+	printf("     Water level:     %f m\n", pEndData.x);
+	printf("     Depth:           %f m\n", pEndData.x - dEndBed);
+	printf("     UW discharge X:  %f m^2/s (%f m/s)\n", pEndData.z, dEndVelocityX);
+	printf("     UW discharge Y:  %f m^2/s (%f m/s)\n", pEndData.w, dEndVelocityY);
+	#endif
+
+	pCellState[ulIdxStart] = pStartData;
+	pCellState[ulIdxEnd] = pEndData;
 }

@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <cstring>
 #include <boost/lexical_cast.hpp>
-
+#include <math.h>
 #include "../../common.h"
 #include "../../main.h"
 #include "../../CModel.h"
@@ -425,12 +425,12 @@ bool	CDomainCartesian::validateDomain( bool bQuiet )
 	}
 
 	// Got a size?
-	if ( ( std::isnan( this->dRealDimensions[ kAxisX ] ) || 
-		   std::isnan( this->dRealDimensions[ kAxisY ] ) ) &&
-		 ( std::isnan( this->dRealExtent[ kEdgeN ] ) || 
-		   std::isnan( this->dRealExtent[ kEdgeE ] ) || 
-		   std::isnan( this->dRealExtent[ kEdgeS ] ) || 
-		   std::isnan( this->dRealExtent[ kEdgeW ] ) ) )
+	if ( ( isnan( this->dRealDimensions[ kAxisX ] ) || 
+		   isnan( this->dRealDimensions[ kAxisY ] ) ) &&
+		 ( isnan( this->dRealExtent[ kEdgeN ] ) || 
+		   isnan( this->dRealExtent[ kEdgeE ] ) || 
+		   isnan( this->dRealExtent[ kEdgeS ] ) || 
+		   isnan( this->dRealExtent[ kEdgeW ] ) ) )
 	{
 		if ( !bQuiet ) model::doError(
 			"Domain extent not defined",
@@ -440,8 +440,8 @@ bool	CDomainCartesian::validateDomain( bool bQuiet )
 	}
 
 	// Got an offset?
-	if ( std::isnan( this->dRealOffset[ kAxisX ] ) ||
-		 std::isnan( this->dRealOffset[ kAxisY ] ) )
+	if ( isnan( this->dRealOffset[ kAxisX ] ) ||
+		 isnan( this->dRealOffset[ kAxisY ] ) )
 	{
 		if ( !bQuiet ) model::doError(
 			"Domain offset not defined",
@@ -642,12 +642,12 @@ void	CDomainCartesian::updateCellStatistics()
 	}
 
 	// Got a size?
-	if ( ( std::isnan( this->dRealDimensions[ kAxisX ] ) || 
-		   std::isnan( this->dRealDimensions[ kAxisY ] ) ) &&
-		 ( std::isnan( this->dRealExtent[ kEdgeN ] ) || 
-		   std::isnan( this->dRealExtent[ kEdgeE ] ) || 
-		   std::isnan( this->dRealExtent[ kEdgeS ] ) || 
-		   std::isnan( this->dRealExtent[ kEdgeW ] ) ) )
+	if ( ( isnan( this->dRealDimensions[ kAxisX ] ) || 
+		   isnan( this->dRealDimensions[ kAxisY ] ) ) &&
+		 ( isnan( this->dRealExtent[ kEdgeN ] ) || 
+		   isnan( this->dRealExtent[ kEdgeE ] ) || 
+		   isnan( this->dRealExtent[ kEdgeS ] ) || 
+		   isnan( this->dRealExtent[ kEdgeW ] ) ) )
 	{
 		return;
 	}
@@ -748,12 +748,19 @@ double	CDomainCartesian::getVolume()
 	{
 		if ( this->isDoublePrecision() )
 		{
-			dVolume += ( this->dCellStates[i].s[0] - this->dBedElevations[i] ) *
-					   this->dCellResolution * this->dCellResolution;
+			dVolume += ( max(0.0, this->dCellStates[i].s[0] - this->dBedElevations[i]) ) *
+					   fabs(this->dCellResolution * this->dCellResolution);
 		} else {
-			dVolume += ( this->fCellStates[i].s[0] - this->fBedElevations[i] ) *
-					   this->dCellResolution * this->dCellResolution;
+			dVolume += ( max(0.0, this->fCellStates[i].s[0] - this->fBedElevations[i]) ) *
+					   fabs(this->dCellResolution * this->dCellResolution);
 		}
+	}
+
+	if (isnan(dVolume)) {
+		model::doError(
+			"Domain volume is no longer numeric. Computation error occured.",
+			model::errorCodes::kLevelModelStop
+		);
 	}
 
 	return dVolume;
@@ -808,6 +815,8 @@ void	CDomainCartesian::writeOutputs()
 	pDevice->blockUntilFinished();
 	pScheme->readDomainAll();
 	pDevice->blockUntilFinished();
+
+	pManager->log->writeLine("Current domain volume: " + toString(fabs((float)(this->getVolume()))) + " m³");
 
 	for( unsigned int i = 0; i < this->pOutputs.size(); ++i )
 	{
